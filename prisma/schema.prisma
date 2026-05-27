@@ -1,0 +1,205 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  BLOCKED
+}
+
+enum PracticeMode {
+  LEARN
+  REVIEW
+  MIXED
+}
+
+enum ExerciseType {
+  MULTIPLE_CHOICE
+  FILL_IN_BLANK
+  VI_TO_CHUNK
+  REWRITE_SENTENCE
+  CREATE_SENTENCE
+}
+
+enum ConfidenceLevel {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model User {
+  id               String            @id @default(cuid())
+  name             String?
+  email            String            @unique
+  emailVerified    DateTime?
+  image            String?
+  role             UserRole          @default(USER)
+  status           UserStatus        @default(PENDING)
+  notes            String?           @db.Text
+  approvedAt       DateTime?
+  blockedAt        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  accounts         Account[]
+  sessions         Session[]
+  createdChunks    Chunk[]           @relation("ChunkCreator")
+  practiceAnswers  PracticeAnswer[]
+  practiceSessions PracticeSession[]
+  reviewSchedules  ReviewSchedule[]
+
+  @@index([role, status])
+}
+
+model Topic {
+  id          String   @id @default(cuid())
+  name        String   @unique @db.VarChar(120)
+  slug        String   @unique @db.VarChar(140)
+  description String?  @db.Text
+  color       String?  @db.VarChar(24)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  chunks      Chunk[]
+
+  @@index([name])
+}
+
+model Chunk {
+  id              String           @id @default(cuid())
+  chunk           String           @db.VarChar(191)
+  meaningVi       String           @map("meaning_vi") @db.VarChar(255)
+  example         String           @db.Text
+  wrongExamples   Json?
+  difficulty      Int              @default(1)
+  bandLevel       Float            @default(6)
+  grammarPattern  String?          @db.VarChar(191)
+  tags            Json?
+  notes           String?          @db.Text
+  topicId         String?
+  createdById     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  topic           Topic?           @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  createdBy       User?            @relation("ChunkCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  practiceAnswers PracticeAnswer[]
+  reviewSchedules ReviewSchedule[]
+
+  @@unique([chunk, meaningVi])
+  @@index([topicId, difficulty])
+  @@index([bandLevel])
+}
+
+model PracticeSession {
+  id                String           @id @default(cuid())
+  userId            String
+  mode              PracticeMode
+  exerciseTypes     Json
+  totalQuestions    Int              @default(0)
+  correctAnswers    Int              @default(0)
+  averageResponseMs Int              @default(0)
+  startedAt         DateTime         @default(now())
+  completedAt       DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers           PracticeAnswer[]
+
+  @@index([userId, startedAt(sort: Desc)])
+}
+
+model PracticeAnswer {
+  id             String          @id @default(cuid())
+  sessionId      String
+  userId         String
+  chunkId        String
+  exerciseType   ExerciseType
+  prompt         String          @db.Text
+  expectedAnswer String          @db.Text
+  userAnswer     String          @db.Text
+  isCorrect      Boolean
+  responseMs     Int
+  confidence     ConfidenceLevel
+  feedback       String?         @db.Text
+  createdAt      DateTime        @default(now())
+  session        PracticeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunk          Chunk           @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@index([userId, chunkId, createdAt(sort: Desc)])
+  @@index([sessionId])
+}
+
+model ReviewSchedule {
+  id                String           @id @default(cuid())
+  userId            String
+  chunkId           String
+  nextReviewAt      DateTime         @default(now())
+  lastReviewedAt    DateTime?
+  intervalDays      Int              @default(1)
+  easeFactor        Float            @default(2.5)
+  reviewCount       Int              @default(0)
+  lastConfidence    ConfidenceLevel?
+  lastCorrect       Boolean?
+  masteryScore      Int              @default(0)
+  totalAttempts     Int              @default(0)
+  correctAttempts   Int              @default(0)
+  averageResponseMs Int              @default(0)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chunk             Chunk            @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chunkId])
+  @@index([userId, nextReviewAt])
+}
+
+model Account {
+  id                String   @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?  @db.Text
+  access_token      String?  @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?  @db.Text
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
