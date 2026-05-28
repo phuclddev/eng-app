@@ -13,9 +13,16 @@
 pnpm install
 pnpm db:generate
 pnpm db:migrate:deploy
+pnpm prisma db seed
 pnpm build
 pm2 start ecosystem.config.cjs
 ```
+
+## Initial admin bootstrap
+
+- The first admin account is bootstrapped as `dinhphuc.luu@garena.vn`.
+- Seeding is idempotent and will keep that user at `ADMIN` + `APPROVED`.
+- After Google OAuth is configured, logging in with that email will also re-assert the same admin role and approved status safely.
 
 ## Nginx proxy
 

@@ -1,7 +1,11 @@
 import "dotenv/config";
 
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
-import { PrismaClient, UserRole, UserStatus } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import {
+  BOOTSTRAP_ADMIN_NAME,
+  ensureBootstrapAdminUser,
+} from "../src/server/bootstrap-admin";
 import { slugify } from "../src/lib/utils";
 
 const adapter = new PrismaMariaDb(
@@ -10,23 +14,10 @@ const adapter = new PrismaMariaDb(
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@example.com";
   const topicNames = ["Task 1", "Task 2", "Education", "Technology"];
 
-  await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: {
-      role: UserRole.ADMIN,
-      status: UserStatus.APPROVED,
-      approvedAt: new Date(),
-    },
-    create: {
-      email: adminEmail,
-      name: "Platform Admin",
-      role: UserRole.ADMIN,
-      status: UserStatus.APPROVED,
-      approvedAt: new Date(),
-    },
+  await ensureBootstrapAdminUser(prisma.user, {
+    name: BOOTSTRAP_ADMIN_NAME,
   });
 
   for (const topicName of topicNames) {

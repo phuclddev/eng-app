@@ -1,6 +1,10 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
+import {
+  getApprovalStatusPath,
+  getSignInPath,
+} from "@/lib/auth-routing";
 import { ForbiddenError, UnauthorizedError } from "@/lib/errors";
 import { authOptions } from "@/server/auth-options";
 
@@ -12,7 +16,7 @@ export async function requireSignedInSession() {
   const session = await getAuthSession();
 
   if (!session?.user?.id) {
-    redirect("/signin");
+    redirect(getSignInPath(undefined, { auto: true }));
   }
 
   return session;
@@ -22,7 +26,7 @@ export async function requireApprovedSession() {
   const session = await requireSignedInSession();
 
   if (session.user.status !== "APPROVED") {
-    redirect(`/auth/pending?status=${session.user.status}`);
+    redirect(getApprovalStatusPath(session.user.status));
   }
 
   return session;

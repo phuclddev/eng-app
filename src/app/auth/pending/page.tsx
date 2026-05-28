@@ -1,37 +1,46 @@
-import { Card, Space, Tag, Typography } from "antd";
+import { redirect } from "next/navigation";
 
 import { SignOutButton } from "@/components/ui/auth-buttons";
 
 const descriptions = {
   PENDING: "Your account is waiting for admin approval before study routes unlock.",
-  APPROVED: "Your account is already approved. You can return to the dashboard.",
   BLOCKED: "Your access is currently blocked. Contact the administrator for clarification.",
 };
 
 export default async function PendingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: "PENDING" | "APPROVED" | "BLOCKED" }>;
+  searchParams: Promise<{ status?: string }>;
 }) {
-  const { status = "PENDING" } = await searchParams;
+  const params = await searchParams;
+
+  if (params.status === "APPROVED") {
+    redirect("/dashboard");
+  }
+
+  const status = params.status === "BLOCKED" ? "BLOCKED" : "PENDING";
 
   return (
     <main className="landing-shell">
       <section className="landing-panel">
-        <Card style={{ maxWidth: 640, margin: "0 auto" }}>
-          <Space direction="vertical" size={16}>
-            <Tag color={status === "BLOCKED" ? "red" : status === "APPROVED" ? "green" : "gold"}>
+        <div className="auth-card auth-card-wide">
+          <div className="auth-stack">
+            <span
+              className={
+                status === "BLOCKED"
+                  ? "auth-status-badge auth-status-badge-blocked"
+                  : "auth-status-badge"
+              }
+            >
               {status}
-            </Tag>
-            <Typography.Title level={2} style={{ margin: 0 }}>
-              Access status
-            </Typography.Title>
-            <Typography.Text type="secondary">
-              {descriptions[status]}
-            </Typography.Text>
-            <SignOutButton />
-          </Space>
-        </Card>
+            </span>
+            <h1>Access status</h1>
+            <p className="auth-copy">{descriptions[status]}</p>
+            <div className="auth-actions">
+              <SignOutButton />
+            </div>
+          </div>
+        </div>
       </section>
     </main>
   );

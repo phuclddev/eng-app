@@ -4,6 +4,11 @@ import GoogleProvider from "next-auth/providers/google";
 
 import { getEnv } from "@/lib/env";
 import { prisma } from "@/server/prisma";
+import {
+  ensureBootstrapAdminUser,
+  isBootstrapAdminEmail,
+  BOOTSTRAP_ADMIN_EMAIL,
+} from "@/server/bootstrap-admin";
 
 const env = getEnv();
 
@@ -24,9 +29,22 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user?.email) {
+      if (user?.email && isBootstrapAdminEmail(user.email)) {
+        await ensureBootstrapAdminUser(prisma.user, {
+          image: user.image,
+          name: user.name,
+        });
+      }
+
+      const lookupEmail = user?.email
+        ? isBootstrapAdminEmail(user.email)
+          ? BOOTSTRAP_ADMIN_EMAIL
+          : user.email
+        : token.email;
+
+      if (lookupEmail) {
         const profile = await prisma.user.findUnique({
-          where: { email: user.email },
+          where: { email: lookupEmail },
           select: {
             id: true,
             role: true,
