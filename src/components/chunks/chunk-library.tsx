@@ -13,8 +13,10 @@ import {
   Card,
   Drawer,
   Form,
+  Grid,
   Input,
   InputNumber,
+  List,
   Popconfirm,
   Select,
   Space,
@@ -38,7 +40,9 @@ export function ChunkLibrary({
   topics: TopicOption[];
   canManage: boolean;
 }) {
-  const { message } = App.useApp();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+  const { message, modal } = App.useApp();
   const router = useRouter();
   const [form] = Form.useForm();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -46,6 +50,41 @@ export function ChunkLibrary({
   const [editingChunk, setEditingChunk] = useState<ChunkRecord | null>(null);
   const [search, setSearch] = useState("");
   const [pending, startTransition] = useTransition();
+
+  const renderImportSummary = ({
+    created,
+    updated,
+    skipped,
+    totalRows,
+    errors,
+  }: {
+    created: number;
+    updated: number;
+    skipped: number;
+    totalRows: number;
+    errors: Array<{
+      message: string;
+      rowNumber?: number;
+    }>;
+  }) => (
+    <Space direction="vertical" size={10} style={{ width: "100%" }}>
+      <Typography.Text>Total rows: {totalRows}</Typography.Text>
+      <Typography.Text>Created: {created}</Typography.Text>
+      <Typography.Text>Updated: {updated}</Typography.Text>
+      <Typography.Text>Skipped: {skipped}</Typography.Text>
+      {errors.length > 0 ? (
+        <Space direction="vertical" size={6} style={{ width: "100%" }}>
+          <Typography.Text strong>Errors</Typography.Text>
+          {errors.map((error) => (
+            <Typography.Text key={`${error.rowNumber ?? "general"}-${error.message}`} type="danger">
+              {error.rowNumber ? `Row ${error.rowNumber}: ` : ""}
+              {error.message}
+            </Typography.Text>
+          ))}
+        </Space>
+      ) : null}
+    </Space>
+  );
 
   const filteredChunks = chunks.filter((chunk) => {
     const query = normalizeText(search);
@@ -122,24 +161,94 @@ export function ChunkLibrary({
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
+    const submitImport = async (dryRun: boolean) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("dryRun", String(dryRun));
 
-    const response = await fetch("/api/admin/chunks/import", {
-      method: "POST",
-      body: formData,
-    });
+      const response = await fetch("/api/admin/chunks/import", {
+        method: "POST",
+        body: formData,
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      message.error(data.message ?? "Import failed.");
+      return {
+        response,
+        data,
+      };
+    };
+
+    const preview = await submitImport(true);
+    const previewSummary = preview.data.summary;
+
+    if (!previewSummary) {
+      message.error(preview.data.message ?? "Import validation failed.");
       return;
     }
 
-    message.success(`Imported ${data.imported} rows.`);
-    router.refresh();
+    if (previewSummary.errors.length > 0) {
+      modal.error({
+        title: "Import validation failed",
+        width: 720,
+        content: renderImportSummary(previewSummary),
+      });
+      return;
+    }
+
+    if (previewSummary.created === 0 && previewSummary.updated === 0) {
+      modal.info({
+        title: "Import validation complete",
+        content: renderImportSummary(previewSummary),
+      });
+      return;
+    }
+
+    modal.confirm({
+      title: "Confirm chunk import",
+      okText: "Import now",
+      width: 720,
+      content: renderImportSummary(previewSummary),
+      onOk: async () => {
+        const result = await submitImport(false);
+        const summary = result.data.summary;
+
+        if (!summary) {
+          message.error(result.data.message ?? "Import failed.");
+          return;
+        }
+
+        if (!result.response.ok || summary.errors.length > 0) {
+          modal.error({
+            title: "Import failed",
+            width: 720,
+            content: renderImportSummary(summary),
+          });
+          return;
+        }
+
+        message.success(
+          `Import complete: ${summary.created} created, ${summary.updated} updated, ${summary.skipped} skipped.`,
+        );
+        router.refresh();
+      },
+    });
   };
+
+  const renderChunkMeta = (chunk: ChunkRecord) => (
+    <Space wrap>
+      <Tag color="blue">Band {chunk.bandLevel.toFixed(1)}</Tag>
+      <Tag color="purple">Difficulty {chunk.difficulty}</Tag>
+      {chunk.topic ? <Tag color="cyan">{chunk.topic.name}</Tag> : null}
+      {chunk.review ? (
+        <Tag color={chunk.review.masteryScore < 50 ? "volcano" : "green"}>
+          Mastery {chunk.review.masteryScore}
+        </Tag>
+      ) : (
+        <Tag>No review yet</Tag>
+      )}
+    </Space>
+  );
 
   return (
     <div className="stacked-view">
@@ -147,22 +256,22 @@ export function ChunkLibrary({
         <Typography.Title level={2} style={{ marginBottom: 4 }}>
           Chunk Library
         </Typography.Title>
-        <Typography.Text type="secondary">
+        <Typography.Text type="secondary" className="wrap-anywhere">
           Search, review, and maintain your IELTS chunk inventory with admin-safe CRUD.
         </Typography.Text>
       </div>
 
-      <Card>
+      <Card className="table-card">
         <Space direction="vertical" size={16} style={{ width: "100%" }}>
-          <Space wrap style={{ width: "100%", justifyContent: "space-between" }}>
+          <div className="responsive-toolbar">
             <Input.Search
+              className="responsive-toolbar__grow"
               allowClear
               placeholder="Search chunk, meaning, topic, or example"
               onChange={(event) => setSearch(event.target.value)}
-              style={{ maxWidth: 420 }}
             />
             {canManage ? (
-              <Space wrap>
+              <div className="responsive-toolbar__actions">
                 <Button icon={<DownloadOutlined />} href="/api/admin/chunks/export">
                   Export CSV
                 </Button>
@@ -179,9 +288,9 @@ export function ChunkLibrary({
                 >
                   Add chunk
                 </Button>
-              </Space>
+              </div>
             ) : null}
-          </Space>
+          </div>
 
           <input
             ref={fileInputRef}
@@ -194,80 +303,132 @@ export function ChunkLibrary({
             }}
           />
 
-          <Table
-            rowKey="id"
-            dataSource={filteredChunks}
-            pagination={{ pageSize: 8 }}
-            columns={[
-              {
-                title: "Chunk",
-                render: (_, record) => (
-                  <Space direction="vertical" size={4}>
-                    <Typography.Text strong>{record.chunk}</Typography.Text>
-                    <Space wrap>
-                      <Tag color="blue">Band {record.bandLevel.toFixed(1)}</Tag>
-                      <Tag color="purple">Difficulty {record.difficulty}</Tag>
-                      {record.topic ? <Tag color="cyan">{record.topic.name}</Tag> : null}
-                    </Space>
-                  </Space>
-                ),
-              },
-              {
-                title: "Meaning",
-                dataIndex: "meaningVi",
-              },
-              {
-                title: "Example",
-                dataIndex: "example",
-              },
-              {
-                title: "Review",
-                render: (_, record) =>
-                  record.review ? (
-                    <Tag color={record.review.masteryScore < 50 ? "volcano" : "green"}>
-                      Mastery {record.review.masteryScore}
-                    </Tag>
-                  ) : (
-                    <Tag>No review yet</Tag>
-                  ),
-              },
-              canManage
-                ? {
-                    title: "Actions",
-                    render: (_, record) => (
-                      <Space>
-                        <Button
-                          size="small"
-                          icon={<EditOutlined />}
-                          onClick={() => openEditDrawer(record)}
-                        />
-                        <Popconfirm
-                          title="Delete this chunk?"
-                          onConfirm={() => handleDelete(record.id)}
-                        >
+          {isMobile ? (
+            <List
+              className="mobile-card-list"
+              dataSource={filteredChunks}
+              pagination={{
+                pageSize: 8,
+                align: "center",
+              }}
+              renderItem={(record) => (
+                <List.Item>
+                  <Card size="small" title={<span className="wrap-anywhere">{record.chunk}</span>}>
+                    <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                      {renderChunkMeta(record)}
+                      <div>
+                        <Typography.Text strong>Meaning</Typography.Text>
+                        <div className="wrap-anywhere">{record.meaningVi}</div>
+                      </div>
+                      <div>
+                        <Typography.Text strong>Example</Typography.Text>
+                        <div className="wrap-anywhere">{record.example}</div>
+                      </div>
+                      {canManage ? (
+                        <div className="mobile-actions">
                           <Button
-                            danger
-                            size="small"
-                            icon={<DeleteOutlined />}
-                            loading={pending}
-                          />
-                        </Popconfirm>
-                      </Space>
+                            icon={<EditOutlined />}
+                            onClick={() => openEditDrawer(record)}
+                          >
+                            Edit
+                          </Button>
+                          <Popconfirm
+                            title="Archive this chunk and preserve study history?"
+                            onConfirm={() => handleDelete(record.id)}
+                          >
+                            <Button danger icon={<DeleteOutlined />} loading={pending}>
+                              Archive
+                            </Button>
+                          </Popconfirm>
+                        </div>
+                      ) : null}
+                    </Space>
+                  </Card>
+                </List.Item>
+              )}
+            />
+          ) : (
+            <Table
+              rowKey="id"
+              dataSource={filteredChunks}
+              pagination={{ pageSize: 8 }}
+              scroll={{ x: 960 }}
+              columns={[
+                {
+                  title: "Chunk",
+                  render: (_, record) => (
+                    <Space direction="vertical" size={4}>
+                      <Typography.Text strong className="wrap-anywhere">
+                        {record.chunk}
+                      </Typography.Text>
+                      {renderChunkMeta(record)}
+                    </Space>
+                  ),
+                },
+                {
+                  title: "Meaning",
+                  dataIndex: "meaningVi",
+                  render: (value) => <span className="wrap-anywhere">{value}</span>,
+                },
+                {
+                  title: "Example",
+                  dataIndex: "example",
+                  render: (value) => <span className="wrap-anywhere">{value}</span>,
+                },
+                {
+                  title: "Review",
+                  render: (_, record) =>
+                    record.review ? (
+                      <Tag color={record.review.masteryScore < 50 ? "volcano" : "green"}>
+                        Mastery {record.review.masteryScore}
+                      </Tag>
+                    ) : (
+                      <Tag>No review yet</Tag>
                     ),
-                  }
-                : {},
-            ]}
-          />
+                },
+                canManage
+                  ? {
+                      title: "Actions",
+                      render: (_, record) => (
+                        <Space>
+                          <Button
+                            size="small"
+                            icon={<EditOutlined />}
+                            onClick={() => openEditDrawer(record)}
+                          />
+                          <Popconfirm
+                            title="Archive this chunk and preserve study history?"
+                            onConfirm={() => handleDelete(record.id)}
+                          >
+                            <Button
+                              danger
+                              size="small"
+                              icon={<DeleteOutlined />}
+                              loading={pending}
+                            />
+                          </Popconfirm>
+                        </Space>
+                      ),
+                    }
+                  : {},
+              ]}
+            />
+          )}
         </Space>
       </Card>
 
       <Drawer
         title={editingChunk ? "Edit chunk" : "Create chunk"}
-        width={520}
+        width={isMobile ? "100%" : 520}
         onClose={() => setDrawerOpen(false)}
         open={drawerOpen}
         extra={
-          <Button type="primary" onClick={() => void submitChunk()} loading={pending}>
+          <Button
+            type="primary"
+            onClick={() => void submitChunk()}
+            loading={pending}
+            className="full-width-mobile"
+          >
             Save
           </Button>
         }
@@ -301,7 +462,11 @@ export function ChunkLibrary({
               }))}
             />
           </Form.Item>
-          <Space style={{ width: "100%" }} size={16}>
+          <Space
+            direction={isMobile ? "vertical" : "horizontal"}
+            style={{ width: "100%" }}
+            size={16}
+          >
             <Form.Item
               name="difficulty"
               label="Difficulty"

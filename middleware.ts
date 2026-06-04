@@ -46,6 +46,7 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/learn/:path*",
+    "/questions/:path*",
     "/chunks/:path*",
     "/practice/:path*",
     "/review/:path*",

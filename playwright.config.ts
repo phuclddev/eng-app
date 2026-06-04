@@ -18,5 +18,29 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      name: "mobile-375x667",
+      use: {
+        ...devices["iPhone 8"],
+        browserName: "chromium",
+      },
+    },
+    {
+      name: "mobile-390x844",
+      use: {
+        ...devices["iPhone 13"],
+        browserName: "chromium",
+      },
+    },
+    {
+      name: "mobile-430x932",
+      use: {
+        browserName: "chromium",
+        viewport: { width: 430, height: 932 },
+        deviceScaleFactor: 3,
+        hasTouch: true,
+        isMobile: true,
+      },
+    },
   ],
 });

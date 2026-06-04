@@ -1,4 +1,7 @@
 import type {
+  IELTS_SKILLS,
+  IELTS_TASK_TYPES,
+  QUESTION_CHUNK_USAGE_ROLES,
   CONFIDENCE_LEVELS,
   EXERCISE_TYPES,
   PRACTICE_MODES,
@@ -9,8 +12,15 @@ import type {
 export type UserRole = (typeof USER_ROLES)[number];
 export type UserStatus = (typeof USER_STATUSES)[number];
 export type PracticeMode = (typeof PRACTICE_MODES)[number];
+export type IeltsSkill = (typeof IELTS_SKILLS)[number];
+export type IeltsTaskType = (typeof IELTS_TASK_TYPES)[number];
+export type QuestionChunkUsageRole = (typeof QUESTION_CHUNK_USAGE_ROLES)[number];
 export type ExerciseType = (typeof EXERCISE_TYPES)[number];
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
+export type PracticeLearningStage =
+  | "RECOGNITION"
+  | "RECALL"
+  | "PRODUCTION";
 
 export type SessionUser = {
   id: string;
@@ -28,6 +38,13 @@ export type TopicOption = {
   color: string | null;
   description: string | null;
   chunkCount?: number;
+};
+
+export type ChunkOption = {
+  id: string;
+  chunk: string;
+  meaningVi: string;
+  topic: string | null;
 };
 
 export type ReviewSnapshot = {
@@ -58,6 +75,7 @@ export type PracticeExercise = {
   id: string;
   chunkId: string;
   type: ExerciseType;
+  learningStage: PracticeLearningStage;
   prompt: string;
   expectedAnswer: string;
   options?: string[];
@@ -85,6 +103,33 @@ export type PracticeDeck = {
   exercises: PracticeExercise[];
   totalDue: number;
   totalChunks: number;
+};
+
+export type QuestionChunkRecommendation = {
+  id: string;
+  usageRole: QuestionChunkUsageRole;
+  exampleSentence: string | null;
+  sortOrder: number;
+  chunk: ChunkOption & {
+    example: string;
+  };
+};
+
+export type IeltsQuestionRecord = {
+  id: string;
+  skill: IeltsSkill;
+  taskType: IeltsTaskType;
+  topic: string;
+  subTopic: string | null;
+  prompt: string;
+  supportingPoints: string[];
+  difficulty: number;
+  targetBand: number;
+  notes: string | null;
+  mappingCount: number;
+  recommendations: QuestionChunkRecommendation[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type DashboardSnapshot = {

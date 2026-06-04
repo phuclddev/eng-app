@@ -1,4 +1,5 @@
 import type { PracticeDeck, PracticeMode } from "@/lib/types";
+import { selectLearnChunks } from "@/lib/learn-selection";
 import { buildPracticeDeck } from "@/lib/practice";
 import { getChunkLibrary } from "@/server/data/chunks";
 
@@ -19,7 +20,7 @@ export async function getPracticeDeckForMode(
   }
 
   if (mode === "LEARN") {
-    pool = chunks.slice(0, 12);
+    pool = selectLearnChunks(chunks, { maxItems: 10 });
   }
 
   if (mode === "MIXED") {

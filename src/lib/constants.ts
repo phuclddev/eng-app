@@ -5,6 +5,16 @@ export const APP_DESCRIPTION =
 export const USER_ROLES = ["USER", "ADMIN"] as const;
 export const USER_STATUSES = ["PENDING", "APPROVED", "BLOCKED"] as const;
 export const PRACTICE_MODES = ["LEARN", "REVIEW", "MIXED"] as const;
+export const IELTS_SKILLS = ["SPEAKING"] as const;
+export const IELTS_TASK_TYPES = ["PART_1", "PART_2", "PART_3"] as const;
+export const QUESTION_CHUNK_USAGE_ROLES = [
+  "HOOK",
+  "MAIN_IDEA",
+  "SUPPORTING_DETAIL",
+  "EXAMPLE",
+  "OPINION",
+  "CLOSING",
+] as const;
 export const EXERCISE_TYPES = [
   "MULTIPLE_CHOICE",
   "FILL_IN_BLANK",
@@ -29,6 +39,25 @@ export const STATUS_LABELS = {
   BLOCKED: "Blocked",
 } as const;
 
+export const IELTS_SKILL_LABELS = {
+  SPEAKING: "Speaking",
+} as const;
+
+export const IELTS_TASK_TYPE_LABELS = {
+  PART_1: "Speaking Part 1",
+  PART_2: "Speaking Part 2",
+  PART_3: "Speaking Part 3",
+} as const;
+
+export const QUESTION_CHUNK_USAGE_ROLE_LABELS = {
+  HOOK: "Hook",
+  MAIN_IDEA: "Main Idea",
+  SUPPORTING_DETAIL: "Supporting Detail",
+  EXAMPLE: "Example",
+  OPINION: "Opinion",
+  CLOSING: "Closing",
+} as const;
+
 export const ROLE_LABELS = {
   USER: "Learner",
   ADMIN: "Admin",
@@ -43,6 +72,7 @@ export const CONFIDENCE_LABELS = {
 export const SIDEBAR_ITEMS = [
   { href: "/dashboard", label: "Dashboard", adminOnly: false },
   { href: "/learn", label: "Learn Today", adminOnly: false },
+  { href: "/questions", label: "Question Bank", adminOnly: false },
   { href: "/chunks", label: "Chunk Library", adminOnly: false },
   { href: "/practice", label: "Practice", adminOnly: false },
   { href: "/review", label: "Review", adminOnly: false },
@@ -61,6 +91,18 @@ export const CSV_HEADERS = [
   "tags",
   "notes",
   "wrong_examples",
+] as const;
+
+export const QUESTION_CSV_HEADERS = [
+  "skill",
+  "task_type",
+  "topic",
+  "sub_topic",
+  "difficulty",
+  "target_band",
+  "prompt",
+  "supporting_points",
+  "notes",
 ] as const;
 
 export const DEFAULT_PAGE_SIZE = 10;

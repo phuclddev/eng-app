@@ -9,6 +9,9 @@ type ChunkQueryResult = Awaited<ReturnType<typeof getChunkEntities>>[number];
 
 async function getChunkEntities(userId?: string) {
   return prisma.chunk.findMany({
+    where: {
+      deletedAt: null,
+    },
     orderBy: {
       updatedAt: "desc",
     },
@@ -84,15 +87,29 @@ export async function getTopicOptions() {
       name: "asc",
     },
     include: {
-      _count: {
+      chunks: {
         select: {
-          chunks: true,
+          id: true,
+        },
+        where: {
+          deletedAt: null,
         },
       },
     },
   });
 
-  return topics.map(mapTopic);
+  return topics.map((topic) =>
+    mapTopic({
+      id: topic.id,
+      name: topic.name,
+      slug: topic.slug,
+      color: topic.color,
+      description: topic.description,
+      _count: {
+        chunks: topic.chunks.length,
+      },
+    }),
+  );
 }
 
 export async function ensureTopicByName(name: string) {
@@ -151,6 +168,7 @@ export async function saveChunk(values: ChunkFormValues, actorId: string) {
     tags: values.tags as Prisma.InputJsonValue,
     notes: values.notes,
     topicId: values.topicId,
+    deletedAt: null,
   };
 
   if (values.id) {
@@ -171,9 +189,12 @@ export async function saveChunk(values: ChunkFormValues, actorId: string) {
 }
 
 export async function removeChunk(id: string) {
-  return prisma.chunk.delete({
+  return prisma.chunk.update({
     where: {
       id,
+    },
+    data: {
+      deletedAt: new Date(),
     },
   });
 }

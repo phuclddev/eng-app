@@ -3,6 +3,7 @@
 import {
   Card,
   Col,
+  Grid,
   List,
   Progress,
   Row,
@@ -17,6 +18,9 @@ import { formatDateTime } from "@/lib/utils";
 import type { DashboardSnapshot } from "@/lib/types";
 
 export function DashboardView({ snapshot }: { snapshot: DashboardSnapshot }) {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+
   return (
     <Space direction="vertical" size={20} style={{ width: "100%" }}>
       <div>
@@ -51,32 +55,56 @@ export function DashboardView({ snapshot }: { snapshot: DashboardSnapshot }) {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={14}>
-          <Card title="Weak Topics">
-            <Table
-              rowKey="topic"
-              pagination={false}
-              dataSource={snapshot.weakTopics}
-              columns={[
-                {
-                  title: "Topic",
-                  dataIndex: "topic",
-                },
-                {
-                  title: "Accuracy",
-                  render: (_, record) => (
-                    <Progress
-                      percent={record.accuracyRate}
-                      size="small"
-                      strokeColor={record.accuracyRate < 60 ? "#d97706" : "#0f766e"}
-                    />
-                  ),
-                },
-                {
-                  title: "Attempts",
-                  dataIndex: "attempts",
-                },
-              ]}
-            />
+          <Card title="Weak Topics" className="table-card">
+            {isMobile ? (
+              <List
+                className="mobile-card-list"
+                dataSource={snapshot.weakTopics}
+                renderItem={(record) => (
+                  <List.Item>
+                    <Card size="small" title={<span className="wrap-anywhere">{record.topic}</span>}>
+                      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                        <Progress
+                          percent={record.accuracyRate}
+                          size="small"
+                          strokeColor={record.accuracyRate < 60 ? "#d97706" : "#0f766e"}
+                        />
+                        <Typography.Text type="secondary">
+                          {record.attempts} attempts
+                        </Typography.Text>
+                      </Space>
+                    </Card>
+                  </List.Item>
+                )}
+              />
+            ) : (
+              <Table
+                rowKey="topic"
+                pagination={false}
+                dataSource={snapshot.weakTopics}
+                scroll={{ x: 560 }}
+                columns={[
+                  {
+                    title: "Topic",
+                    dataIndex: "topic",
+                  },
+                  {
+                    title: "Accuracy",
+                    render: (_, record) => (
+                      <Progress
+                        percent={record.accuracyRate}
+                        size="small"
+                        strokeColor={record.accuracyRate < 60 ? "#d97706" : "#0f766e"}
+                      />
+                    ),
+                  },
+                  {
+                    title: "Attempts",
+                    dataIndex: "attempts",
+                  },
+                ]}
+              />
+            )}
           </Card>
         </Col>
 

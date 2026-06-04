@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   Empty,
+  Grid,
   Input,
   Progress,
   Radio,
@@ -52,6 +53,8 @@ export function PracticeRunner({
   title: string;
   description: string;
 }) {
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const router = useRouter();
   const { message } = App.useApp();
   const [index, setIndex] = useState(0);
@@ -91,15 +94,28 @@ export function PracticeRunner({
           <Typography.Title level={3} style={{ margin: 0 }}>
             Session complete
           </Typography.Title>
-          <Space size="large" wrap>
-            <Statistic title="Correct answers" value={summary.correctAnswers} />
-            <Statistic title="Total questions" value={summary.totalQuestions} />
-            <Statistic title="Accuracy" value={summary.accuracyRate} suffix="%" />
-            <Statistic title="Avg response" value={summary.averageResponseMs} suffix="ms" />
-          </Space>
-          <Space>
+          <div className="practice-summary-grid">
+            <div className="practice-summary-stat">
+              <Statistic title="Correct answers" value={summary.correctAnswers} />
+            </div>
+            <div className="practice-summary-stat">
+              <Statistic title="Total questions" value={summary.totalQuestions} />
+            </div>
+            <div className="practice-summary-stat">
+              <Statistic title="Accuracy" value={summary.accuracyRate} suffix="%" />
+            </div>
+            <div className="practice-summary-stat">
+              <Statistic title="Avg response" value={summary.averageResponseMs} suffix="ms" />
+            </div>
+          </div>
+          <Space
+            direction={isMobile ? "vertical" : "horizontal"}
+            size={12}
+            style={{ width: "100%" }}
+          >
             <Button
               type="primary"
+              className="full-width-mobile"
               onClick={() => {
                 router.refresh();
                 setSummary(null);
@@ -112,7 +128,7 @@ export function PracticeRunner({
             >
               Start another round
             </Button>
-            <Button>
+            <Button className="full-width-mobile">
               <Link href="/progress">View progress</Link>
             </Button>
           </Space>
@@ -188,10 +204,12 @@ export function PracticeRunner({
         <Typography.Title level={2} style={{ marginBottom: 4 }}>
           {title}
         </Typography.Title>
-        <Typography.Text type="secondary">{description}</Typography.Text>
+        <Typography.Text type="secondary" className="wrap-anywhere">
+          {description}
+        </Typography.Text>
       </div>
 
-      <Card>
+      <Card className="practice-runner__card">
         <Space direction="vertical" size={20} style={{ width: "100%" }}>
           <Progress
             percent={Math.round(((index + (checked ? 1 : 0)) / deck.exercises.length) * 100)}
@@ -201,21 +219,24 @@ export function PracticeRunner({
           <Space wrap>
             <Tag color="cyan">{EXERCISE_LABELS[exercise.type]}</Tag>
             {exercise.topic ? <Tag color="blue">{exercise.topic}</Tag> : null}
-            <Tag color="purple">{exercise.chunk}</Tag>
+            <Tag color="purple" className="practice-runner__chunk">
+              {exercise.chunk}
+            </Tag>
           </Space>
 
-          <Typography.Title level={4} style={{ margin: 0 }}>
+          <Typography.Title level={4} style={{ margin: 0 }} className="practice-runner__prompt">
             {exercise.prompt}
           </Typography.Title>
 
           {exercise.type === "MULTIPLE_CHOICE" ? (
             <Radio.Group
+              className="practice-runner__options"
               value={answer}
               onChange={(event) => setAnswer(event.target.value)}
             >
               <Space direction="vertical">
                 {exercise.options?.map((option) => (
-                  <Radio key={option} value={option}>
+                  <Radio key={option} value={option} className="wrap-anywhere">
                     {option}
                   </Radio>
                 ))}
@@ -223,7 +244,11 @@ export function PracticeRunner({
             </Radio.Group>
           ) : (
             <Input.TextArea
-              rows={exercise.type === "CREATE_SENTENCE" ? 5 : 3}
+              className="practice-runner__answer"
+              autoSize={{
+                minRows: exercise.type === "CREATE_SENTENCE" ? (isMobile ? 6 : 5) : isMobile ? 4 : 3,
+                maxRows: exercise.type === "CREATE_SENTENCE" ? 12 : 8,
+              }}
               value={answer}
               onChange={(event) => setAnswer(event.target.value)}
               placeholder="Type your answer"
@@ -235,7 +260,7 @@ export function PracticeRunner({
               type="info"
               showIcon
               message="Hint"
-              description={exercise.hint}
+              description={<span className="practice-runner__copy">{exercise.hint}</span>}
             />
           ) : null}
 
@@ -244,7 +269,11 @@ export function PracticeRunner({
               type={checked.isCorrect ? "success" : "warning"}
               showIcon
               message={checked.isCorrect ? "Correct" : "Needs review"}
-              description={`Model chunk: ${exercise.expectedAnswer}`}
+              description={
+                <span className="practice-runner__feedback">
+                  Model chunk: {exercise.expectedAnswer}
+                </span>
+              }
             />
           ) : null}
 
@@ -262,28 +291,31 @@ export function PracticeRunner({
             />
           </Space>
 
-          <Button
-            type="primary"
-            size="large"
-            icon={
-              submitting ? (
-                <LoadingOutlined />
-              ) : checked ? (
-                <RightCircleOutlined />
-              ) : (
-                <CheckCircleOutlined />
-              )
-            }
-            onClick={() => void submitCurrentAnswer()}
-            disabled={!answer.trim()}
-            loading={submitting}
-          >
-            {checked
-              ? index === deck.exercises.length - 1
-                ? "Finish session"
-                : "Next question"
-              : "Check answer"}
-          </Button>
+          <div className="practice-runner__sticky">
+            <Button
+              type="primary"
+              size="large"
+              icon={
+                submitting ? (
+                  <LoadingOutlined />
+                ) : checked ? (
+                  <RightCircleOutlined />
+                ) : (
+                  <CheckCircleOutlined />
+                )
+              }
+              onClick={() => void submitCurrentAnswer()}
+              disabled={!answer.trim()}
+              loading={submitting}
+              className="full-width-mobile"
+            >
+              {checked
+                ? index === deck.exercises.length - 1
+                  ? "Finish session"
+                  : "Next question"
+                : "Check answer"}
+            </Button>
+          </div>
         </Space>
       </Card>
     </Space>

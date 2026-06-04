@@ -21,12 +21,20 @@ describe("middleware RBAC", () => {
   it("redirects unauthenticated protected requests into auto sign-in", async () => {
     getToken.mockResolvedValue(null);
 
-    const response = await middleware(
+    const dashboardResponse = await middleware(
       new NextRequest("http://localhost:3000/dashboard"),
     );
 
-    expect(response.headers.get("location")).toBe(
+    expect(dashboardResponse.headers.get("location")).toBe(
       "http://localhost:3000/signin?callbackUrl=%2Fdashboard&auto=true",
+    );
+
+    const questionsResponse = await middleware(
+      new NextRequest("http://localhost:3000/questions"),
+    );
+
+    expect(questionsResponse.headers.get("location")).toBe(
+      "http://localhost:3000/signin?callbackUrl=%2Fquestions&auto=true",
     );
   });
 

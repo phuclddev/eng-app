@@ -38,6 +38,25 @@ enum ConfidenceLevel {
   HARD
 }
 
+enum IeltsSkill {
+  SPEAKING
+}
+
+enum IeltsTaskType {
+  PART_1
+  PART_2
+  PART_3
+}
+
+enum QuestionChunkUsageRole {
+  HOOK
+  MAIN_IDEA
+  SUPPORTING_DETAIL
+  EXAMPLE
+  OPINION
+  CLOSING
+}
+
 model User {
   id               String            @id @default(cuid())
   name             String?
@@ -54,6 +73,7 @@ model User {
   accounts         Account[]
   sessions         Session[]
   createdChunks    Chunk[]           @relation("ChunkCreator")
+  createdQuestions IeltsQuestion[]   @relation("QuestionCreator")
   practiceAnswers  PracticeAnswer[]
   practiceSessions PracticeSession[]
   reviewSchedules  ReviewSchedule[]
@@ -87,14 +107,17 @@ model Chunk {
   notes           String?          @db.Text
   topicId         String?
   createdById     String?
+  deletedAt       DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   topic           Topic?           @relation(fields: [topicId], references: [id], onDelete: SetNull)
   createdBy       User?            @relation("ChunkCreator", fields: [createdById], references: [id], onDelete: SetNull)
   practiceAnswers PracticeAnswer[]
+  questionMappings IeltsQuestionChunkMapping[]
   reviewSchedules ReviewSchedule[]
 
   @@unique([chunk, meaningVi])
+  @@index([deletedAt])
   @@index([topicId, difficulty])
   @@index([bandLevel])
 }
@@ -161,6 +184,46 @@ model ReviewSchedule {
 
   @@unique([userId, chunkId])
   @@index([userId, nextReviewAt])
+}
+
+model IeltsQuestion {
+  id               String                     @id @default(cuid())
+  skill            IeltsSkill                @default(SPEAKING)
+  taskType         IeltsTaskType
+  topic            String                     @db.VarChar(120)
+  subTopic         String?                    @db.VarChar(120)
+  prompt           String                     @db.Text
+  supportingPoints Json?
+  difficulty       Int                        @default(1)
+  targetBand       Float                      @default(6)
+  notes            String?                    @db.Text
+  fingerprint      String                     @unique @db.VarChar(191)
+  createdById      String?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  createdBy        User?                      @relation("QuestionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  chunkMappings    IeltsQuestionChunkMapping[]
+
+  @@index([skill, taskType, topic])
+  @@index([subTopic])
+  @@index([difficulty, targetBand])
+}
+
+model IeltsQuestionChunkMapping {
+  id              String                 @id @default(cuid())
+  questionId      String
+  chunkId         String
+  usageRole       QuestionChunkUsageRole
+  exampleSentence String?                @db.Text
+  sortOrder       Int                    @default(0)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  question        IeltsQuestion          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  chunk           Chunk                  @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, chunkId, usageRole])
+  @@index([questionId, sortOrder])
+  @@index([chunkId])
 }
 
 model Account {

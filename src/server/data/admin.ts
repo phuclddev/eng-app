@@ -66,9 +66,12 @@ export async function getAdminSnapshot() {
         name: "asc",
       },
       include: {
-        _count: {
+        chunks: {
           select: {
-            chunks: true,
+            id: true,
+          },
+          where: {
+            deletedAt: null,
           },
         },
       },
@@ -85,7 +88,7 @@ export async function getAdminSnapshot() {
           slug: topic.slug,
           color: topic.color,
           description: topic.description,
-          chunkCount: topic._count.chunks,
+          chunkCount: topic.chunks.length,
         }) satisfies TopicOption,
     ),
   };

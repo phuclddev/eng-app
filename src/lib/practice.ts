@@ -1,15 +1,92 @@
-import { EXERCISE_TYPES } from "@/lib/constants";
 import type {
   ChunkRecord,
   PracticeAnswerPayload,
   PracticeExercise,
+  PracticeLearningStage,
   PracticeMode,
 } from "@/lib/types";
-import { normalizeText, shuffleArray } from "@/lib/utils";
+import { normalizeText } from "@/lib/utils";
+
+type StagePlan = {
+  exerciseType: PracticeExercise["type"];
+  learningStage: PracticeLearningStage;
+  stageRank: number;
+};
+
+const STAGE_PRIORITY: Record<PracticeLearningStage, number> = {
+  RECOGNITION: 0,
+  RECALL: 1,
+  PRODUCTION: 2,
+};
+
+function stableHash(value: string) {
+  let hash = 0;
+
+  for (const character of value) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+
+  return hash;
+}
+
+function stableSortBySeed<T>(
+  items: T[],
+  seed: string,
+  getValue: (item: T) => string,
+) {
+  return [...items].sort((left, right) => {
+    const leftKey = `${seed}:${getValue(left)}`;
+    const rightKey = `${seed}:${getValue(right)}`;
+    return stableHash(leftKey) - stableHash(rightKey) || leftKey.localeCompare(rightKey);
+  });
+}
+
+export function inferChunkStagePlan(chunk: ChunkRecord): StagePlan {
+  const review = chunk.review;
+
+  if (!review) {
+    return {
+      learningStage: "RECOGNITION",
+      exerciseType: "MULTIPLE_CHOICE",
+      stageRank: 0,
+    };
+  }
+
+  if (review.reviewCount <= 1 || review.masteryScore < 35) {
+    return {
+      learningStage: "RECOGNITION",
+      exerciseType: "FILL_IN_BLANK",
+      stageRank: 1,
+    };
+  }
+
+  if (review.reviewCount <= 3 || review.masteryScore < 75) {
+    return {
+      learningStage: "RECALL",
+      exerciseType: "VI_TO_CHUNK",
+      stageRank: 2,
+    };
+  }
+
+  if (review.reviewCount <= 5 || review.masteryScore < 90 || review.intervalDays < 14) {
+    return {
+      learningStage: "PRODUCTION",
+      exerciseType: "REWRITE_SENTENCE",
+      stageRank: 3,
+    };
+  }
+
+  return {
+    learningStage: "PRODUCTION",
+    exerciseType: "CREATE_SENTENCE",
+    stageRank: 4,
+  };
+}
 
 function createMultipleChoice(
   chunk: ChunkRecord,
   pool: ChunkRecord[],
+  learningStage: PracticeLearningStage,
 ): PracticeExercise {
   const distractors = pool
     .filter((candidate) => candidate.id !== chunk.id)
@@ -21,14 +98,20 @@ function createMultipleChoice(
     )
     .slice(0, 3)
     .map((candidate) => candidate.chunk);
+  const options = stableSortBySeed(
+    [chunk.chunk, ...distractors],
+    `${chunk.id}:mcq`,
+    (option) => option,
+  );
 
   return {
     id: `${chunk.id}-mcq`,
     chunkId: chunk.id,
     type: "MULTIPLE_CHOICE",
+    learningStage,
     prompt: `Choose the best chunk for: ${chunk.meaningVi}`,
     expectedAnswer: chunk.chunk,
-    options: shuffleArray([chunk.chunk, ...distractors]),
+    options,
     hint: chunk.topic?.name ?? undefined,
     chunk: chunk.chunk,
     meaningVi: chunk.meaningVi,
@@ -37,7 +120,10 @@ function createMultipleChoice(
   };
 }
 
-function createFillInBlank(chunk: ChunkRecord): PracticeExercise {
+function createFillInBlank(
+  chunk: ChunkRecord,
+  learningStage: PracticeLearningStage,
+): PracticeExercise {
   const hiddenSentence = chunk.example.replace(
     new RegExp(chunk.chunk, "i"),
     "_____",
@@ -47,6 +133,7 @@ function createFillInBlank(chunk: ChunkRecord): PracticeExercise {
     id: `${chunk.id}-fill`,
     chunkId: chunk.id,
     type: "FILL_IN_BLANK",
+    learningStage,
     prompt:
       hiddenSentence === chunk.example
         ? `Fill the blank with the correct chunk: ${chunk.meaningVi}`
@@ -60,11 +147,15 @@ function createFillInBlank(chunk: ChunkRecord): PracticeExercise {
   };
 }
 
-function createViToChunk(chunk: ChunkRecord): PracticeExercise {
+function createViToChunk(
+  chunk: ChunkRecord,
+  learningStage: PracticeLearningStage,
+): PracticeExercise {
   return {
     id: `${chunk.id}-vi`,
     chunkId: chunk.id,
     type: "VI_TO_CHUNK",
+    learningStage,
     prompt: `Type the English chunk for: ${chunk.meaningVi}`,
     expectedAnswer: chunk.chunk,
     hint: chunk.example,
@@ -75,7 +166,10 @@ function createViToChunk(chunk: ChunkRecord): PracticeExercise {
   };
 }
 
-function createRewriteSentence(chunk: ChunkRecord): PracticeExercise {
+function createRewriteSentence(
+  chunk: ChunkRecord,
+  learningStage: PracticeLearningStage,
+): PracticeExercise {
   const seed =
     chunk.wrongExamples[0] ??
     `Rewrite the sentence so it uses "${chunk.chunk}" naturally.`;
@@ -84,6 +178,7 @@ function createRewriteSentence(chunk: ChunkRecord): PracticeExercise {
     id: `${chunk.id}-rewrite`,
     chunkId: chunk.id,
     type: "REWRITE_SENTENCE",
+    learningStage,
     prompt: seed,
     expectedAnswer: chunk.chunk,
     hint: "Your answer should include the target chunk naturally.",
@@ -94,11 +189,15 @@ function createRewriteSentence(chunk: ChunkRecord): PracticeExercise {
   };
 }
 
-function createProductionPrompt(chunk: ChunkRecord): PracticeExercise {
+function createProductionPrompt(
+  chunk: ChunkRecord,
+  learningStage: PracticeLearningStage,
+): PracticeExercise {
   return {
     id: `${chunk.id}-create`,
     chunkId: chunk.id,
     type: "CREATE_SENTENCE",
+    learningStage,
     prompt: `Create an IELTS-style sentence using "${chunk.chunk}".`,
     expectedAnswer: chunk.chunk,
     hint: chunk.example,
@@ -110,34 +209,57 @@ function createProductionPrompt(chunk: ChunkRecord): PracticeExercise {
 }
 
 function createExercise(
-  type: (typeof EXERCISE_TYPES)[number],
+  plan: StagePlan,
   chunk: ChunkRecord,
   pool: ChunkRecord[],
 ) {
-  switch (type) {
+  switch (plan.exerciseType) {
     case "MULTIPLE_CHOICE":
-      return createMultipleChoice(chunk, pool);
+      return createMultipleChoice(chunk, pool, plan.learningStage);
     case "FILL_IN_BLANK":
-      return createFillInBlank(chunk);
+      return createFillInBlank(chunk, plan.learningStage);
     case "VI_TO_CHUNK":
-      return createViToChunk(chunk);
+      return createViToChunk(chunk, plan.learningStage);
     case "REWRITE_SENTENCE":
-      return createRewriteSentence(chunk);
+      return createRewriteSentence(chunk, plan.learningStage);
     case "CREATE_SENTENCE":
-      return createProductionPrompt(chunk);
+      return createProductionPrompt(chunk, plan.learningStage);
   }
 }
 
 export function buildPracticeDeck(
   chunks: ChunkRecord[],
-  _mode: PracticeMode,
+  mode: PracticeMode,
   maxItems = 10,
 ) {
   const selected = chunks.slice(0, maxItems);
 
-  return selected.map((chunk, index) =>
-    createExercise(EXERCISE_TYPES[index % EXERCISE_TYPES.length], chunk, chunks),
-  );
+  return selected
+    .map((chunk) => ({
+      chunk,
+      plan: inferChunkStagePlan(chunk),
+    }))
+    .sort((left, right) => {
+      const stagePriorityDiff =
+        STAGE_PRIORITY[left.plan.learningStage] - STAGE_PRIORITY[right.plan.learningStage];
+
+      if (stagePriorityDiff !== 0) {
+        return stagePriorityDiff;
+      }
+
+      const stageRankDiff = left.plan.stageRank - right.plan.stageRank;
+
+      if (stageRankDiff !== 0) {
+        return stageRankDiff;
+      }
+
+      return (
+        stableHash(`${mode}:${left.chunk.id}:${left.plan.exerciseType}`) -
+          stableHash(`${mode}:${right.chunk.id}:${right.plan.exerciseType}`) ||
+        left.chunk.id.localeCompare(right.chunk.id)
+      );
+    })
+    .map(({ chunk, plan }) => createExercise(plan, chunk, chunks));
 }
 
 export function evaluateExerciseAnswer(

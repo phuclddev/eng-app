@@ -12,3 +12,12 @@
 - Added safe bootstrap admin support for `dinhphuc.luu@garena.vn`
 - Wired seed + login-safe admin upsert enforcement without weakening RBAC
 - Added routing and bootstrap tests plus updated deployment/security notes
+- Hardened chunk CSV import with dry-run validation, transactional rollback safety, duplicate upsert handling, and admin summaries
+- Replaced hard chunk deletion with soft delete so practice/review history is preserved
+- Replaced recent-update LEARN selection with deterministic unseen-first prioritization plus weak-chunk inclusion and mastered-chunk deprioritization
+- Replaced rotating exercise assignment with deterministic stage-based practice generation using existing review metadata to progress chunks from recognition to recall to production
+- Added IELTS question bank foundation with Prisma models, transactional CSV import, admin mapping UI, learner browsing UI, and RBAC/import/mapping test coverage
+- Optimized the workspace shell for mobile with a compact header and drawer navigation while keeping the desktop sidebar flow intact
+- Reworked learner mobile layouts for practice, chunk browsing, dashboard, learn, progress, and question bank views to avoid horizontal overflow and improve tap targets
+- Added mobile-safe admin list/card fallbacks, safer table scrolling, and block confirmations for user moderation
+- Added Playwright mobile viewport coverage for root/auth redirect plus protected-route smoke definitions for dashboard, practice, review, and chunks

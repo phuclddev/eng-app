@@ -42,10 +42,17 @@ export async function getDashboardSnapshot(
     recentAnswers,
     recentSessions,
   ] = await Promise.all([
-    prisma.chunk.count(),
+    prisma.chunk.count({
+      where: {
+        deletedAt: null,
+      },
+    }),
     prisma.reviewSchedule.count({
       where: {
         userId,
+        chunk: {
+          deletedAt: null,
+        },
         nextReviewAt: {
           lte: now,
         },
@@ -159,7 +166,12 @@ export async function getProgressSnapshot(
       take: 400,
     }),
     prisma.reviewSchedule.findMany({
-      where: { userId },
+      where: {
+        userId,
+        chunk: {
+          deletedAt: null,
+        },
+      },
       orderBy: [{ masteryScore: "asc" }, { nextReviewAt: "asc" }],
       take: 8,
       include: {

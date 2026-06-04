@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
 
-import { parseChunkCsv } from "@/lib/csv";
+import { executeChunkImport } from "@/server/chunk-import";
 import { getErrorResponse } from "@/lib/errors";
-import { ensureTopicByName, saveChunk } from "@/server/data/chunks";
 import { requireAdminApiSession } from "@/server/auth";
+import { prisma } from "@/server/prisma";
 
 export async function POST(request: Request) {
   try {
     const session = await requireAdminApiSession();
     const formData = await request.formData();
     const file = formData.get("file");
+    const dryRun = formData.get("dryRun") === "true";
 
     if (!(file instanceof File)) {
       return NextResponse.json(
@@ -19,37 +20,153 @@ export async function POST(request: Request) {
     }
 
     const csvText = await file.text();
-    const rows = parseChunkCsv(csvText);
+    const result = await executeChunkImport({
+      actorId: session.user.id,
+      csvText,
+      dryRun,
+      repository: {
+        async findChunksByKeys(keys) {
+          if (keys.length === 0) {
+            return [];
+          }
 
-    for (const row of rows) {
-      const topicId = row.topic ? await ensureTopicByName(row.topic) : null;
+          const chunks = await prisma.chunk.findMany({
+            where: {
+              OR: keys.map((key) => ({
+                chunk: key.chunk,
+                meaningVi: key.meaningVi,
+              })),
+            },
+            include: {
+              topic: {
+                select: {
+                  slug: true,
+                },
+              },
+            },
+          });
 
-      await saveChunk(
-        {
-          chunk: row.chunk,
-          meaningVi: row.meaning,
-          example: row.example,
-          wrongExamples: row.wrong_examples
-            .split("|")
-            .map((item) => item.trim())
-            .filter(Boolean),
-          difficulty: row.difficulty,
-          bandLevel: row.band_level,
-          grammarPattern: row.grammar_pattern || null,
-          tags: row.tags
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
-          notes: row.notes || null,
-          topicId,
+          return chunks.map((chunk) => ({
+            id: chunk.id,
+            chunk: chunk.chunk,
+            meaningVi: chunk.meaningVi,
+            example: chunk.example,
+            wrongExamples: chunk.wrongExamples,
+            difficulty: chunk.difficulty,
+            bandLevel: chunk.bandLevel,
+            grammarPattern: chunk.grammarPattern,
+            tags: chunk.tags,
+            notes: chunk.notes,
+            topicSlug: chunk.topic?.slug ?? null,
+            deletedAt: chunk.deletedAt,
+          }));
         },
-        session.user.id,
+        async findTopicsBySlugs(slugs) {
+          if (slugs.length === 0) {
+            return [];
+          }
+
+          return prisma.topic.findMany({
+            where: {
+              slug: {
+                in: slugs,
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          });
+        },
+        async transaction(callback) {
+          return prisma.$transaction(async (transaction) =>
+            callback({
+              async createTopic(topic) {
+                return transaction.topic.create({
+                  data: topic,
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                  },
+                });
+              },
+              async findTopicsBySlugs(slugs) {
+                if (slugs.length === 0) {
+                  return [];
+                }
+
+                return transaction.topic.findMany({
+                  where: {
+                    slug: {
+                      in: slugs,
+                    },
+                  },
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                  },
+                });
+              },
+              async upsertChunk(input) {
+                await transaction.chunk.upsert({
+                  where: {
+                    chunk_meaningVi: {
+                      chunk: input.chunk,
+                      meaningVi: input.meaningVi,
+                    },
+                  },
+                  create: {
+                    chunk: input.chunk,
+                    meaningVi: input.meaningVi,
+                    example: input.example,
+                    wrongExamples: input.wrongExamples,
+                    difficulty: input.difficulty,
+                    bandLevel: input.bandLevel,
+                    grammarPattern: input.grammarPattern,
+                    tags: input.tags,
+                    notes: input.notes,
+                    topicId: input.topicId,
+                    createdById: input.actorId,
+                    deletedAt: null,
+                  },
+                  update: {
+                    example: input.example,
+                    wrongExamples: input.wrongExamples,
+                    difficulty: input.difficulty,
+                    bandLevel: input.bandLevel,
+                    grammarPattern: input.grammarPattern,
+                    tags: input.tags,
+                    notes: input.notes,
+                    topicId: input.topicId,
+                    deletedAt: null,
+                  },
+                });
+              },
+            }),
+          );
+        },
+      },
+    });
+
+    if (result.summary.errors.length > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          dryRun: result.dryRun,
+          summary: result.summary,
+          message: "Import validation failed.",
+        },
+        { status: 400 },
       );
     }
 
     return NextResponse.json({
       ok: true,
-      imported: rows.length,
+      dryRun: result.dryRun,
+      summary: result.summary,
     });
   } catch (error) {
     const { status, body } = getErrorResponse(error);

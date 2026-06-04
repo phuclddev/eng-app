@@ -5,23 +5,28 @@ import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
 import {
   chunkFormSchema,
+  questionChunkMappingsFormSchema,
   topicFormSchema,
   userModerationSchema,
   type ChunkFormInput,
+  type QuestionChunkMappingsFormInput,
   type TopicFormInput,
 } from "@/lib/validation";
 import { requireAdminApiSession } from "@/server/auth";
 import { saveTopic, saveChunk, removeChunk } from "@/server/data/chunks";
 import { updateUserModeration } from "@/server/data/admin";
+import { saveQuestionChunkMappings } from "@/server/data/questions";
 
 const revalidateTargets = [
   "/dashboard",
   "/learn",
+  "/questions",
   "/chunks",
   "/practice",
   "/review",
   "/progress",
   "/admin",
+  "/admin/questions",
 ];
 
 function refreshWorkspace() {
@@ -67,7 +72,7 @@ export async function deleteChunkAction(id: string) {
     await requireAdminApiSession();
     await removeChunk(id);
     refreshWorkspace();
-    return { ok: true, message: "Chunk deleted successfully." };
+    return { ok: true, message: "Chunk archived successfully." };
   } catch (error) {
     logger.error({ error }, "Failed to delete chunk");
     return {
@@ -96,6 +101,27 @@ export async function moderateUserAction(input: {
       ok: false,
       message:
         error instanceof Error ? error.message : "Unable to update this user.",
+    };
+  }
+}
+
+export async function saveQuestionChunkMappingsAction(
+  input: QuestionChunkMappingsFormInput,
+) {
+  try {
+    await requireAdminApiSession();
+    const values = questionChunkMappingsFormSchema.parse(input);
+    await saveQuestionChunkMappings(values);
+    refreshWorkspace();
+    return { ok: true, message: "Question chunk mappings saved." };
+  } catch (error) {
+    logger.error({ error }, "Failed to save question chunk mappings");
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to save question chunk mappings.",
     };
   }
 }

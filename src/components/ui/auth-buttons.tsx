@@ -5,6 +5,10 @@ import { useEffect, useRef, useTransition } from "react";
 
 import { DEFAULT_AUTH_CALLBACK_PATH } from "@/lib/auth-routing";
 
+function buildButtonClassName(classes: Array<false | null | string | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
 export function GoogleSignInButton({
   callbackUrl = DEFAULT_AUTH_CALLBACK_PATH,
   disabled = false,
@@ -52,13 +56,24 @@ export function AutoGoogleSignIn({
   return null;
 }
 
-export function SignOutButton() {
+export function SignOutButton({
+  block = false,
+  className,
+}: {
+  block?: boolean;
+  className?: string;
+}) {
   const [pending, startTransition] = useTransition();
 
   return (
     <button
       type="button"
-      className="auth-button auth-button-secondary"
+      className={buildButtonClassName([
+        "auth-button",
+        "auth-button-secondary",
+        block ? "auth-button-block" : undefined,
+        className,
+      ])}
       aria-busy={pending}
       disabled={pending}
       onClick={() =>
