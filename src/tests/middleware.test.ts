@@ -44,6 +44,22 @@ describe("middleware RBAC", () => {
     expect(aiTutorResponse.headers.get("location")).toBe(
       "http://localhost:3000/signin?callbackUrl=%2Fai-tutor&auto=true",
     );
+
+    const simulatorResponse = await middleware(
+      new NextRequest("http://localhost:3000/speaking-simulator"),
+    );
+
+    expect(simulatorResponse.headers.get("location")).toBe(
+      "http://localhost:3000/signin?callbackUrl=%2Fspeaking-simulator&auto=true",
+    );
+
+    const studyCoachResponse = await middleware(
+      new NextRequest("http://localhost:3000/study-coach"),
+    );
+
+    expect(studyCoachResponse.headers.get("location")).toBe(
+      "http://localhost:3000/signin?callbackUrl=%2Fstudy-coach&auto=true",
+    );
   });
 
   it("routes pending and blocked users to the approval gate", async () => {

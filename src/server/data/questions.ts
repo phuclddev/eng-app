@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type {
   ChunkOption,
   IeltsQuestionRecord,
+  IeltsQuestionPromptOption,
   QuestionChunkRecommendation,
 } from "@/lib/types";
 import type { QuestionChunkMappingsFormValues } from "@/lib/validation";
@@ -126,6 +127,33 @@ export async function getChunkOptionsForQuestionMappings(): Promise<ChunkOption[
     chunk: chunk.chunk,
     meaningVi: chunk.meaningVi,
     topic: chunk.topic?.name ?? null,
+  }));
+}
+
+export async function getQuestionPromptOptions(): Promise<IeltsQuestionPromptOption[]> {
+  const questions = await prisma.ieltsQuestion.findMany({
+    orderBy: [
+      { taskType: "asc" },
+      { topic: "asc" },
+      { prompt: "asc" },
+    ],
+    select: {
+      id: true,
+      taskType: true,
+      topic: true,
+      subTopic: true,
+      prompt: true,
+      targetBand: true,
+    },
+  });
+
+  return questions.map((question) => ({
+    id: question.id,
+    taskType: question.taskType,
+    topic: question.topic,
+    subTopic: question.subTopic,
+    prompt: question.prompt,
+    targetBand: question.targetBand,
   }));
 }
 

@@ -29,7 +29,10 @@ import { useState } from "react";
 import {
   buildPracticeAiTutorMessage,
   supportsPracticeExerciseAiTutor,
+  supportsPracticeMissingChunks,
 } from "@/lib/ai-tutor";
+import { AiStructuredSections } from "@/components/ai/ai-structured-sections";
+import { ChunkCoachTrigger } from "@/components/ai/chunk-coach-trigger";
 import {
   CONFIDENCE_LABELS,
   EXERCISE_LABELS,
@@ -39,6 +42,7 @@ import {
   evaluateExerciseAnswer,
 } from "@/lib/practice";
 import type {
+  AiTutorStructuredFeedbackSection,
   ConfidenceLevel,
   PracticeAnswerPayload,
   PracticeDeck,
@@ -77,6 +81,14 @@ export function PracticeRunner({
   const [aiTutorState, setAiTutorState] = useState<{
     answer?: string;
     conversationId?: string;
+    error?: string;
+    loading: boolean;
+  }>({
+    loading: false,
+  });
+  const [missingChunksState, setMissingChunksState] = useState<{
+    answer?: string;
+    sections?: AiTutorStructuredFeedbackSection[];
     error?: string;
     loading: boolean;
   }>({
@@ -139,6 +151,7 @@ export function PracticeRunner({
                 setAnswer("");
                 setChecked(null);
                 setAiTutorState({ loading: false });
+                setMissingChunksState({ loading: false });
                 setStepStartedAt(Date.now());
               }}
             >
@@ -184,6 +197,7 @@ export function PracticeRunner({
       setAnswer("");
       setChecked(null);
       setAiTutorState({ loading: false });
+      setMissingChunksState({ loading: false });
       setConfidence("MEDIUM");
       setStepStartedAt(Date.now());
       return;
@@ -275,6 +289,69 @@ export function PracticeRunner({
     Boolean(checked) &&
     supportsPracticeExerciseAiTutor(exercise.type) &&
     answer.trim().length > 0;
+  const canAskMissingChunks =
+    aiTutorEnabled &&
+    Boolean(checked) &&
+    supportsPracticeMissingChunks(exercise.type) &&
+    answer.trim().length > 0;
+
+  const askMissingChunks = async () => {
+    if (!canAskMissingChunks) {
+      return;
+    }
+
+    setMissingChunksState((currentState) => ({
+      ...currentState,
+      error: undefined,
+      loading: true,
+    }));
+
+    try {
+      const response = await fetch("/api/ai-tutor/missing-chunks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: exercise.prompt,
+          targetChunk: exercise.chunk,
+          recommendedChunks: [
+            {
+              chunk: exercise.chunk,
+              meaningVi: exercise.meaningVi,
+            },
+          ],
+          userAnswer: answer,
+          topic: exercise.topic ?? undefined,
+        }),
+      });
+      const data = (await response.json()) as {
+        answer?: string;
+        sections?: AiTutorStructuredFeedbackSection[];
+        message?: string;
+      };
+
+      if (!response.ok || !data.answer) {
+        throw new Error(data.message ?? "AI could not suggest missing chunks.");
+      }
+
+      setMissingChunksState({
+        answer: data.answer,
+        sections: data.sections,
+        error: undefined,
+        loading: false,
+      });
+    } catch (error) {
+      setMissingChunksState((currentState) => ({
+        ...currentState,
+        error:
+          error instanceof Error
+            ? error.message
+            : "AI could not suggest missing chunks.",
+        loading: false,
+      }));
+    }
+  };
 
   return (
     <Space direction="vertical" size={20} style={{ width: "100%" }}>
@@ -300,6 +377,12 @@ export function PracticeRunner({
             <Tag color="purple" className="practice-runner__chunk">
               {exercise.chunk}
             </Tag>
+            <ChunkCoachTrigger
+              chunkId={exercise.chunkId}
+              chunkLabel={exercise.chunk}
+              disabled={!aiTutorEnabled}
+              size="small"
+            />
           </Space>
 
           <Typography.Title level={4} style={{ margin: 0 }} className="practice-runner__prompt">
@@ -367,6 +450,19 @@ export function PracticeRunner({
                 >
                   {aiTutorState.answer ? "Ask AI Tutor again" : "Ask AI Tutor"}
                 </Button>
+                <Button
+                  icon={
+                    missingChunksState.loading ? <LoadingOutlined /> : <RobotOutlined />
+                  }
+                  onClick={() => void askMissingChunks()}
+                  disabled={missingChunksState.loading}
+                  loading={missingChunksState.loading}
+                  className="full-width-mobile"
+                >
+                  {missingChunksState.answer
+                    ? "Suggest missing chunks again"
+                    : "Suggest missing chunks"}
+                </Button>
               </div>
 
               {aiTutorState.error ? (
@@ -387,6 +483,31 @@ export function PracticeRunner({
                       className="wrap-anywhere"
                     >
                       {aiTutorState.answer}
+                    </Typography.Paragraph>
+                  </Space>
+                </Card>
+              ) : null}
+
+              {missingChunksState.error ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="Missing chunk recommendation is unavailable"
+                  description={missingChunksState.error}
+                />
+              ) : null}
+
+              {missingChunksState.sections?.length ? (
+                <AiStructuredSections sections={missingChunksState.sections} />
+              ) : missingChunksState.answer ? (
+                <Card size="small" className="ai-inline-response">
+                  <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                    <Typography.Text strong>Missing chunk recommendation</Typography.Text>
+                    <Typography.Paragraph
+                      style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
+                      className="wrap-anywhere"
+                    >
+                      {missingChunksState.answer}
                     </Typography.Paragraph>
                   </Space>
                 </Card>

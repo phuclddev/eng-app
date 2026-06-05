@@ -28,3 +28,9 @@
 - Added `AiConversation` persistence so internal conversation ids stay user-owned and safe from cross-user reuse
 - Added `/ai-tutor` learner chat UI plus optional AI help inside practice production exercises and speaking question detail
 - Added AI Tutor env placeholders, security/deployment/API docs, and test coverage for client parsing, route RBAC, helper logic, and conversation ownership
+- Added structured IELTS Speaking feedback mode with server-side prompt building and section parsing for speaking answer coaching
+- Added AI Chunk Coach with structured chunk explanations from chunk library, practice, and speaking prompt chunk suggestions
+- Added AI Missing Chunk Recommendation for speaking answers plus production-style practice answers
+- Added Speaking Simulator with ownership-safe persisted sessions, local message history, upstream thread reuse, and structured final feedback
+- Added AI Study Coach with compact learner-profile generation, cached snapshots, and dashboard-linked learner guidance
+- Added advanced AI prompt-builder coverage, simulator ownership tests, route validation tests, and updated architecture/security/testing notes

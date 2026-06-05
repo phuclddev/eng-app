@@ -502,6 +502,25 @@ a {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.simulator-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+}
+
+.simulator-composer-sticky {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  padding-top: 8px;
+  background: linear-gradient(
+    180deg,
+    rgba(238, 244, 242, 0) 0%,
+    rgba(238, 244, 242, 0.92) 28%,
+    rgba(238, 244, 242, 1) 100%
+  );
+}
+
 @media (max-width: 900px) {
   .hero-card {
     padding: 28px;
@@ -562,6 +581,10 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .simulator-layout {
+    grid-template-columns: 1fr;
+  }
+
   .question-list-item {
     padding-inline: 8px;
   }
@@ -576,5 +599,9 @@ a {
 
   .ai-tutor-chat__bubble {
     width: 100%;
+  }
+
+  .simulator-composer-sticky {
+    bottom: calc(12px + env(safe-area-inset-bottom));
   }
 }

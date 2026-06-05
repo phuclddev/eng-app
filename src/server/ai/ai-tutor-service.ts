@@ -1,54 +1,17 @@
-import type { AiTutorPurpose } from "@/lib/types";
+import {
+  parseStructuredSpeakingFeedback,
+} from "@/lib/ai-tutor";
+import type {
+  AiTutorPurpose,
+  AiTutorSpeakingAnswerContext,
+} from "@/lib/types";
 import { ForbiddenError } from "@/lib/errors";
 import { prisma } from "@/server/prisma";
 import { callAiTutor } from "@/server/ai/ai-chatflow-client";
+import { buildAiTutorQuery } from "@/server/ai/ai-tutor-prompt-builder";
 
 function truncateTitle(message: string) {
   return message.replace(/\s+/g, " ").trim().slice(0, 96) || "AI Tutor conversation";
-}
-
-function buildPurposeGuidance(purpose: AiTutorPurpose) {
-  switch (purpose) {
-    case "SENTENCE_CORRECTION":
-      return [
-        "Purpose: sentence correction for IELTS Speaking chunk practice.",
-        "Correct grammar, word choice, and chunk placement naturally.",
-      ].join("\n");
-    case "SPEAKING_COACH":
-      return [
-        "Purpose: speaking coach for IELTS Speaking prompts.",
-        "Suggest a concise sample answer and practical chunk usage.",
-      ].join("\n");
-    case "CHUNK_EXPLANATION":
-      return [
-        "Purpose: explain chunk meaning and natural usage for IELTS Speaking.",
-        "Contrast natural and unnatural usage briefly when helpful.",
-      ].join("\n");
-    case "GENERAL_CHAT":
-    default:
-      return "Purpose: general IELTS Speaking tutoring and chunk guidance.";
-  }
-}
-
-export function buildAiTutorQuery({
-  message,
-  purpose,
-}: {
-  message: string;
-  purpose: AiTutorPurpose;
-}) {
-  return [
-    "You are AI Tutor inside an IELTS Speaking chunk training app.",
-    "Focus on IELTS Speaking only.",
-    "Keep answers concise and practical.",
-    "Explain in Vietnamese when useful, but preserve strong English examples.",
-    "Suggest chunks naturally instead of forcing them.",
-    "Avoid overly long answers and avoid generic filler.",
-    buildPurposeGuidance(purpose),
-    "",
-    "User request:",
-    message.trim(),
-  ].join("\n");
 }
 
 async function getOwnedConversation({
@@ -77,11 +40,13 @@ export async function chatWithAiTutor({
   message,
   purpose = "GENERAL_CHAT",
   conversationId,
+  context,
 }: {
   userId: string;
   message: string;
   purpose?: AiTutorPurpose;
   conversationId?: string;
+  context?: AiTutorSpeakingAnswerContext;
 }) {
   const existingConversation = conversationId
     ? await getOwnedConversation({
@@ -89,21 +54,31 @@ export async function chatWithAiTutor({
         userId,
       })
     : null;
+  const effectivePurpose =
+    context?.kind === "SPEAKING_ANSWER_REVIEW"
+      ? "SPEAKING_COACH"
+      : existingConversation?.purpose ?? purpose;
 
   const upstreamResponse = await callAiTutor({
     query: buildAiTutorQuery({
       message,
-      purpose: existingConversation?.purpose ?? purpose,
+      purpose: effectivePurpose,
+      context,
     }),
     conversationId: existingConversation?.externalConversationId,
   });
+
+  const structuredFeedback =
+    context?.kind === "SPEAKING_ANSWER_REVIEW"
+      ? parseStructuredSpeakingFeedback(upstreamResponse.answer)
+      : null;
 
   if (!existingConversation) {
     const createdConversation = await prisma.aiConversation.create({
       data: {
         userId,
         externalConversationId: upstreamResponse.conversationId,
-        purpose,
+        purpose: effectivePurpose,
         title: truncateTitle(message),
       },
     });
@@ -111,6 +86,7 @@ export async function chatWithAiTutor({
     return {
       answer: upstreamResponse.answer,
       conversationId: createdConversation.id,
+      structuredFeedback: structuredFeedback ?? undefined,
     };
   }
 
@@ -127,5 +103,6 @@ export async function chatWithAiTutor({
   return {
     answer: upstreamResponse.answer,
     conversationId: existingConversation.id,
+    structuredFeedback: structuredFeedback ?? undefined,
   };
 }

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   AI_TUTOR_PURPOSES,
+  AI_SIMULATOR_PARTS,
   CONFIDENCE_LEVELS,
   EXERCISE_TYPES,
   IELTS_SKILLS,
@@ -119,6 +120,80 @@ export const aiTutorChatSchema = z.object({
     .max(4000, "Message is too long."),
   conversationId: z.string().trim().min(1).optional(),
   purpose: z.enum(AI_TUTOR_PURPOSES).optional().default("GENERAL_CHAT"),
+  context: z
+    .object({
+      kind: z.literal("SPEAKING_ANSWER_REVIEW"),
+      speakingPart: z.enum(IELTS_TASK_TYPES),
+      topic: z.string().trim().min(2, "Topic is required."),
+      subTopic: z.string().trim().optional().nullable(),
+      prompt: z.string().trim().min(5, "Prompt is required."),
+      recommendedChunks: z
+        .array(
+          z.object({
+            chunk: z.string().trim().min(1, "Chunk is required."),
+            meaningVi: z.string().trim().optional().nullable(),
+            usageRole: z.enum(QUESTION_CHUNK_USAGE_ROLES).optional().nullable(),
+            exampleSentence: z.string().trim().optional().nullable(),
+          }),
+        )
+        .max(12)
+        .default([]),
+      userAnswer: z
+        .string()
+        .trim()
+        .min(5, "A speaking answer is required.")
+        .max(4000, "Speaking answer is too long."),
+    })
+    .optional(),
+});
+
+export const aiChunkCoachSchema = z.object({
+  chunkId: z.string().trim().min(1, "Chunk is required."),
+});
+
+export const aiMissingChunksSchema = z.object({
+  prompt: z.string().trim().optional(),
+  targetChunk: z.string().trim().optional(),
+  recommendedChunks: z
+    .array(
+      z.object({
+        chunk: z.string().trim().min(1, "Chunk is required."),
+        meaningVi: z.string().trim().optional().nullable(),
+        usageRole: z.enum(QUESTION_CHUNK_USAGE_ROLES).optional().nullable(),
+        exampleSentence: z.string().trim().optional().nullable(),
+      }),
+    )
+    .max(12)
+    .default([]),
+  userAnswer: z
+    .string()
+    .trim()
+    .min(5, "A speaking answer is required.")
+    .max(4000, "Speaking answer is too long."),
+  topic: z.string().trim().optional(),
+  part: z.enum(AI_SIMULATOR_PARTS).optional(),
+});
+
+export const aiSpeakingSimulatorStartSchema = z.object({
+  part: z.enum(AI_SIMULATOR_PARTS),
+  topic: z.string().trim().max(120).optional(),
+  questionId: z.string().trim().optional(),
+  prompt: z.string().trim().max(2000).optional(),
+  targetBand: z.coerce.number().min(4).max(9).optional(),
+  numberOfTurns: z.coerce.number().int().min(3).max(8).default(5),
+});
+
+export const aiSpeakingSimulatorMessageSchema = z.object({
+  sessionId: z.string().trim().min(1, "Session is required."),
+  message: z
+    .string()
+    .trim()
+    .min(2, "Message is required.")
+    .max(4000, "Message is too long."),
+});
+
+export const aiStudyCoachSchema = z.object({
+  forceRefresh: z.boolean().optional().default(false),
 });
 
 export const chunkCsvRowSchema = z.object({
@@ -158,3 +233,12 @@ export type QuestionChunkMappingsFormValues = z.infer<
 >;
 export type PracticeSubmission = z.infer<typeof practiceSubmissionSchema>;
 export type AiTutorChatPayload = z.infer<typeof aiTutorChatSchema>;
+export type AiChunkCoachPayload = z.infer<typeof aiChunkCoachSchema>;
+export type AiMissingChunksPayload = z.infer<typeof aiMissingChunksSchema>;
+export type AiSpeakingSimulatorStartPayload = z.infer<
+  typeof aiSpeakingSimulatorStartSchema
+>;
+export type AiSpeakingSimulatorMessagePayload = z.infer<
+  typeof aiSpeakingSimulatorMessageSchema
+>;
+export type AiStudyCoachPayload = z.infer<typeof aiStudyCoachSchema>;

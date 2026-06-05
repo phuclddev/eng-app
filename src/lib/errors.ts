@@ -29,6 +29,12 @@ export class ForbiddenError extends AppError {
   }
 }
 
+export class NotFoundError extends AppError {
+  constructor(message = "The requested resource was not found.") {
+    super(message, 404, "NOT_FOUND");
+  }
+}
+
 export function getErrorResponse(error: unknown) {
   if (error instanceof ZodError) {
     return {

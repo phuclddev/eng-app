@@ -103,6 +103,13 @@ describe("AI tutor chat route", () => {
     chatWithAiTutor.mockResolvedValue({
       answer: "Here is a concise sample answer.",
       conversationId: "internal-1",
+      structuredFeedback: [
+        {
+          key: "overallFeedback",
+          title: "Overall feedback",
+          content: "Clear answer, but make the tense more consistent.",
+        },
+      ],
     });
 
     const response = await POST(
@@ -114,6 +121,14 @@ describe("AI tutor chat route", () => {
         body: JSON.stringify({
           message: "Please help",
           purpose: "GENERAL_CHAT",
+          context: {
+            kind: "SPEAKING_ANSWER_REVIEW",
+            speakingPart: "PART_1",
+            topic: "Hometown",
+            prompt: "Do you like your hometown?",
+            recommendedChunks: [],
+            userAnswer: "Yes, because it is peaceful.",
+          },
         }),
       }),
     );
@@ -123,12 +138,27 @@ describe("AI tutor chat route", () => {
     expect(body).toEqual({
       answer: "Here is a concise sample answer.",
       conversationId: "internal-1",
+      structuredFeedback: [
+        {
+          key: "overallFeedback",
+          title: "Overall feedback",
+          content: "Clear answer, but make the tense more consistent.",
+        },
+      ],
     });
     expect(chatWithAiTutor).toHaveBeenCalledWith({
       userId: "user-1",
       message: "Please help",
       conversationId: undefined,
       purpose: "GENERAL_CHAT",
+      context: {
+        kind: "SPEAKING_ANSWER_REVIEW",
+        speakingPart: "PART_1",
+        topic: "Hometown",
+        prompt: "Do you like your hometown?",
+        recommendedChunks: [],
+        userAnswer: "Yes, because it is peaceful.",
+      },
     });
   });
 });

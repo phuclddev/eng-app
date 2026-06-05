@@ -1,4 +1,5 @@
 import { ChunkLibrary } from "@/components/chunks/chunk-library";
+import { isAiTutorConfigured } from "@/lib/env";
 import { getChunkLibrary, getTopicOptions } from "@/server/data/chunks";
 import { requireApprovedSession } from "@/server/auth";
 
@@ -11,6 +12,7 @@ export default async function ChunkLibraryPage() {
 
   return (
     <ChunkLibrary
+      aiTutorEnabled={isAiTutorConfigured()}
       chunks={chunks}
       topics={topics}
       canManage={session.user.role === "ADMIN"}

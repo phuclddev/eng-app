@@ -81,6 +81,29 @@ export async function getChunkLibrary(userId?: string) {
   return chunks.map(mapChunkRecord);
 }
 
+export async function getChunkById(id: string, userId?: string) {
+  const chunk = await prisma.chunk.findFirst({
+    where: {
+      id,
+      deletedAt: null,
+    },
+    include: {
+      topic: true,
+      reviewSchedules: userId
+        ? {
+            where: { userId },
+            take: 1,
+            orderBy: {
+              updatedAt: "desc",
+            },
+          }
+        : undefined,
+    },
+  });
+
+  return chunk ? mapChunkRecord(chunk) : null;
+}
+
 export async function getTopicOptions() {
   const topics = await prisma.topic.findMany({
     orderBy: {

@@ -2,6 +2,8 @@
 
 import {
   BookOutlined,
+  BulbOutlined,
+  CommentOutlined,
   RobotOutlined,
   MenuOutlined,
   DashboardOutlined,
@@ -37,6 +39,8 @@ const iconMap = {
   "/learn": <BookOutlined />,
   "/questions": <MessageOutlined />,
   "/ai-tutor": <RobotOutlined />,
+  "/speaking-simulator": <CommentOutlined />,
+  "/study-coach": <BulbOutlined />,
   "/chunks": <FileTextOutlined />,
   "/practice": <ToolOutlined />,
   "/review": <ScheduleOutlined />,

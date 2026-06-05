@@ -64,6 +64,25 @@ enum AiConversationPurpose {
   CHUNK_EXPLANATION
 }
 
+enum AiSimulatorPart {
+  PART_1
+  PART_2
+  PART_3
+  MIXED
+}
+
+enum AiSimulatorStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum AiSimulatorMessageRole {
+  EXAMINER
+  LEARNER
+  FEEDBACK
+}
+
 model User {
   id               String            @id @default(cuid())
   name             String?
@@ -82,6 +101,8 @@ model User {
   createdChunks    Chunk[]           @relation("ChunkCreator")
   createdQuestions IeltsQuestion[]   @relation("QuestionCreator")
   aiConversations  AiConversation[]
+  aiSimulatorSessions AiSimulatorSession[]
+  aiStudyCoachSnapshots AiStudyCoachSnapshot[]
   practiceAnswers  PracticeAnswer[]
   practiceSessions PracticeSession[]
   reviewSchedules  ReviewSchedule[]
@@ -245,6 +266,55 @@ model AiConversation {
   user                   User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, updatedAt(sort: Desc)])
+}
+
+model AiSimulatorSession {
+  id                     String                @id @default(cuid())
+  userId                 String
+  part                   AiSimulatorPart
+  topic                  String?               @db.VarChar(120)
+  prompt                 String?               @db.Text
+  targetBand             Float?
+  numberOfTurns          Int                   @default(5)
+  currentTurn            Int                   @default(0)
+  status                 AiSimulatorStatus     @default(ACTIVE)
+  externalConversationId String                @unique @db.VarChar(191)
+  finalFeedback          String?               @db.Text
+  finalFeedbackSections  Json?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  user                   User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages               AiSimulatorMessage[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@index([status, part])
+}
+
+model AiSimulatorMessage {
+  id         String                 @id @default(cuid())
+  sessionId  String
+  role       AiSimulatorMessageRole
+  content    String                 @db.Text
+  turnNumber Int                    @default(0)
+  createdAt  DateTime               @default(now())
+  session    AiSimulatorSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+model AiStudyCoachSnapshot {
+  id              String   @id @default(cuid())
+  userId          String
+  sourceHash      String   @db.VarChar(191)
+  answer          String   @db.Text
+  structuredPlan  Json?
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@index([userId, sourceHash])
 }
 
 model Account {

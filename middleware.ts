@@ -48,6 +48,8 @@ export const config = {
     "/learn/:path*",
     "/questions/:path*",
     "/ai-tutor/:path*",
+    "/speaking-simulator/:path*",
+    "/study-coach/:path*",
     "/chunks/:path*",
     "/practice/:path*",
     "/review/:path*",

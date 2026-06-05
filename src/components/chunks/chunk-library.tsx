@@ -27,15 +27,18 @@ import {
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
+import { ChunkCoachTrigger } from "@/components/ai/chunk-coach-trigger";
 import { deleteChunkAction, saveChunkAction } from "@/server/actions/admin";
 import type { ChunkRecord, TopicOption } from "@/lib/types";
 import { normalizeText } from "@/lib/utils";
 
 export function ChunkLibrary({
+  aiTutorEnabled,
   chunks,
   topics,
   canManage,
 }: {
+  aiTutorEnabled: boolean;
   chunks: ChunkRecord[];
   topics: TopicOption[];
   canManage: boolean;
@@ -324,6 +327,12 @@ export function ChunkLibrary({
                         <Typography.Text strong>Example</Typography.Text>
                         <div className="wrap-anywhere">{record.example}</div>
                       </div>
+                      <ChunkCoachTrigger
+                        chunkId={record.id}
+                        chunkLabel={record.chunk}
+                        disabled={!aiTutorEnabled}
+                        block
+                      />
                       {canManage ? (
                         <div className="mobile-actions">
                           <Button
@@ -391,6 +400,12 @@ export function ChunkLibrary({
                       title: "Actions",
                       render: (_, record) => (
                         <Space>
+                          <ChunkCoachTrigger
+                            chunkId={record.id}
+                            chunkLabel={record.chunk}
+                            disabled={!aiTutorEnabled}
+                            size="small"
+                          />
                           <Button
                             size="small"
                             icon={<EditOutlined />}

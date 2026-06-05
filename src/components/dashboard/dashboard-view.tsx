@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Button,
   Card,
   Col,
   Grid,
@@ -13,6 +14,7 @@ import {
   Tag,
   Typography,
 } from "antd";
+import Link from "next/link";
 
 import { formatDateTime } from "@/lib/utils";
 import type { DashboardSnapshot } from "@/lib/types";
@@ -126,6 +128,33 @@ export function DashboardView({ snapshot }: { snapshot: DashboardSnapshot }) {
                 </List.Item>
               )}
             />
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xl={12}>
+          <Card title="AI Study Coach">
+            <Space direction="vertical" size={16} style={{ width: "100%" }}>
+              <Typography.Text className="wrap-anywhere">
+                Turn your weak chunks, due reviews, and low-accuracy topics into a concise 7-day IELTS Speaking plan.
+              </Typography.Text>
+              <Button type="primary" className="full-width-mobile">
+                <Link href="/study-coach">Open AI Study Coach</Link>
+              </Button>
+            </Space>
+          </Card>
+        </Col>
+        <Col xs={24} xl={12}>
+          <Card title="Speaking Simulator">
+            <Space direction="vertical" size={16} style={{ width: "100%" }}>
+              <Typography.Text className="wrap-anywhere">
+                Run a text-based IELTS Speaking interview with one examiner question at a time.
+              </Typography.Text>
+              <Button className="full-width-mobile">
+                <Link href="/speaking-simulator">Start simulator</Link>
+              </Button>
+            </Space>
           </Card>
         </Col>
       </Row>

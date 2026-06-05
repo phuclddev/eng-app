@@ -18,6 +18,21 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
 - Authorization enforced on the server through middleware and session guards
 - Sensitive tokens and secrets are redacted from logs
 
+## AI Tutor layer
+
+- The external chatflow token is used only from server code.
+- Prompt construction is centralized under `src/server/ai/prompts` so long IELTS-specific instructions are not scattered across React components.
+- The AI integration has four layers:
+  - `ai-chatflow-client`: talks to the upstream chatflow API with timeout and safe parsing
+  - prompt builders: compose task-specific IELTS Speaking instructions
+  - services: load app context, enforce ownership, and parse structured sections
+  - routes/UI: expose approved-user endpoints and render graceful fallbacks
+- Structured AI features added on top of the base chat route:
+  - Chunk Coach
+  - Missing Chunk Recommendation
+  - Speaking Simulator
+  - Study Coach
+
 ## Chunk lifecycle
 
 - Active chunks are available to library, practice, review, and dashboard flows.
@@ -62,3 +77,41 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
   - Production: `REWRITE_SENTENCE` -> `CREATE_SENTENCE`
 - Deck ordering is deterministic for testing, but uses stable hashing so it is less mechanically predictable than fixed index rotation.
 - Multiple-choice option ordering is also deterministic now.
+
+## Advanced AI Tutor data
+
+- `AiConversation` keeps the internal-to-upstream conversation mapping for general AI chat and speaking feedback.
+- `AiSimulatorSession` stores:
+  - user ownership
+  - requested speaking part
+  - optional topic or prompt context
+  - target band and turn limit
+  - upstream `conversation_id`
+  - final feedback when the simulation ends
+- `AiSimulatorMessage` stores the local transcript for the simulator so the app can render a mobile-friendly examiner chat history without trusting browser state.
+- `AiStudyCoachSnapshot` stores:
+  - a compact learner-profile hash
+  - the latest generated study-coach answer
+  - parsed sections when available
+  - timestamps for cache reuse
+
+## AI feature surfaces
+
+- Chunk Coach can be opened from:
+  - chunk library
+  - practice production exercises
+  - speaking prompt recommended chunks
+- Missing Chunk Recommendation can be requested from:
+  - speaking prompt answer coaching
+  - `CREATE_SENTENCE`
+  - `REWRITE_SENTENCE`
+- Speaking Simulator is a dedicated learner route that keeps thread context through the stored upstream `conversation_id`.
+- Study Coach builds a compact profile from dashboard and progress data, then caches the AI plan to reduce repeated token usage.
+
+## Failure model
+
+- Normal chunk learning, practice submission, and review flows remain server-owned and work even if AI routes fail.
+- AI features are additive helpers:
+  - plain-text fallback is rendered when structured parsing fails
+  - friendly route errors are returned when the upstream service is unavailable
+  - practice submission is never blocked by optional AI calls

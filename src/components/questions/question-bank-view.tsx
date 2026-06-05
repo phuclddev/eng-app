@@ -16,13 +16,21 @@ import {
 } from "antd";
 import { useState } from "react";
 
-import { buildQuestionAiTutorMessage } from "@/lib/ai-tutor";
+import {
+  getDefaultSpeakingReviewRequest,
+} from "@/lib/ai-tutor";
+import { AiStructuredSections } from "@/components/ai/ai-structured-sections";
+import { ChunkCoachTrigger } from "@/components/ai/chunk-coach-trigger";
 import {
   IELTS_SKILL_LABELS,
   IELTS_TASK_TYPE_LABELS,
   QUESTION_CHUNK_USAGE_ROLE_LABELS,
 } from "@/lib/constants";
-import type { IeltsQuestionRecord, IeltsTaskType } from "@/lib/types";
+import type {
+  AiTutorStructuredFeedbackSection,
+  IeltsQuestionRecord,
+  IeltsTaskType,
+} from "@/lib/types";
 
 export function QuestionBankView({
   aiTutorEnabled,
@@ -46,6 +54,19 @@ export function QuestionBankView({
         conversationId?: string;
         error?: string;
         loading: boolean;
+        structuredFeedback?: AiTutorStructuredFeedbackSection[];
+      }
+    >
+  >({});
+  const [questionDraftAnswers, setQuestionDraftAnswers] = useState<Record<string, string>>({});
+  const [questionMissingChunkStates, setQuestionMissingChunkStates] = useState<
+    Record<
+      string,
+      {
+        answer?: string;
+        error?: string;
+        loading: boolean;
+        sections?: AiTutorStructuredFeedbackSection[];
       }
     >
   >({});
@@ -70,9 +91,17 @@ export function QuestionBankView({
   const currentTutorState = activeQuestionId
     ? questionTutorStates[activeQuestionId]
     : undefined;
+  const currentMissingChunksState = activeQuestionId
+    ? questionMissingChunkStates[activeQuestionId]
+    : undefined;
+  const currentDraftAnswer = activeQuestionId
+    ? questionDraftAnswers[activeQuestionId] ?? ""
+    : "";
 
   const askTutor = async (question: IeltsQuestionRecord) => {
-    if (!aiTutorEnabled) {
+    const draftAnswer = questionDraftAnswers[question.id]?.trim() ?? "";
+
+    if (!aiTutorEnabled || draftAnswer.length === 0) {
       return;
     }
 
@@ -92,15 +121,30 @@ export function QuestionBankView({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message: buildQuestionAiTutorMessage(question),
+          message: getDefaultSpeakingReviewRequest(),
           conversationId: questionTutorStates[question.id]?.conversationId,
           purpose: "SPEAKING_COACH",
+          context: {
+            kind: "SPEAKING_ANSWER_REVIEW",
+            speakingPart: question.taskType,
+            topic: question.topic,
+            subTopic: question.subTopic,
+            prompt: question.prompt,
+            recommendedChunks: question.recommendations.map((recommendation) => ({
+              chunk: recommendation.chunk.chunk,
+              meaningVi: recommendation.chunk.meaningVi,
+              usageRole: recommendation.usageRole,
+              exampleSentence: recommendation.exampleSentence,
+            })),
+            userAnswer: draftAnswer,
+          },
         }),
       });
       const data = (await response.json()) as {
         answer?: string;
         conversationId?: string;
         message?: string;
+        structuredFeedback?: AiTutorStructuredFeedbackSection[];
       };
 
       if (!response.ok || !data.answer || !data.conversationId) {
@@ -117,6 +161,7 @@ export function QuestionBankView({
           conversationId: safeConversationId,
           error: undefined,
           loading: false,
+          structuredFeedback: data.structuredFeedback,
         },
       }));
     } catch (error) {
@@ -128,6 +173,75 @@ export function QuestionBankView({
             error instanceof Error
               ? error.message
               : "AI Tutor could not coach this prompt.",
+          loading: false,
+        },
+      }));
+    }
+  };
+
+  const askMissingChunks = async (question: IeltsQuestionRecord) => {
+    const draftAnswer = questionDraftAnswers[question.id]?.trim() ?? "";
+
+    if (!aiTutorEnabled || draftAnswer.length === 0) {
+      return;
+    }
+
+    setQuestionMissingChunkStates((currentStates) => ({
+      ...currentStates,
+      [question.id]: {
+        ...currentStates[question.id],
+        error: undefined,
+        loading: true,
+      },
+    }));
+
+    try {
+      const response = await fetch("/api/ai-tutor/missing-chunks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: question.prompt,
+          recommendedChunks: question.recommendations.map((recommendation) => ({
+            chunk: recommendation.chunk.chunk,
+            meaningVi: recommendation.chunk.meaningVi,
+            usageRole: recommendation.usageRole,
+            exampleSentence: recommendation.exampleSentence,
+          })),
+          userAnswer: draftAnswer,
+          topic: question.topic,
+          part: question.taskType,
+        }),
+      });
+      const data = (await response.json()) as {
+        answer?: string;
+        message?: string;
+        sections?: AiTutorStructuredFeedbackSection[];
+      };
+
+      if (!response.ok || !data.answer) {
+        throw new Error(data.message ?? "AI could not suggest missing chunks.");
+      }
+
+      setQuestionMissingChunkStates((currentStates) => ({
+        ...currentStates,
+        [question.id]: {
+          answer: data.answer,
+          error: undefined,
+          loading: false,
+          sections: data.sections,
+        },
+      }));
+    } catch (error) {
+      setQuestionMissingChunkStates((currentStates) => ({
+        ...currentStates,
+        [question.id]: {
+          ...currentStates[question.id],
+          error:
+            error instanceof Error
+              ? error.message
+              : "AI could not suggest missing chunks.",
           loading: false,
         },
       }));
@@ -233,17 +347,57 @@ export function QuestionBankView({
                   {selectedQuestion.prompt}
                 </Typography.Title>
 
+                <Space direction="vertical" size={10} style={{ width: "100%" }}>
+                  <Typography.Text strong>Your speaking answer</Typography.Text>
+                  <Input.TextArea
+                    value={currentDraftAnswer}
+                    onChange={(event) =>
+                      setQuestionDraftAnswers((currentAnswers) => ({
+                        ...currentAnswers,
+                        [selectedQuestion.id]: event.target.value,
+                      }))
+                    }
+                    placeholder="Speak naturally, then type your answer here for AI feedback."
+                    autoSize={{ minRows: 5, maxRows: 10 }}
+                  />
+                </Space>
+
                 <div className="mobile-actions">
                   <Button
                     icon={
                       currentTutorState?.loading ? <LoadingOutlined /> : <RobotOutlined />
                     }
                     onClick={() => void askTutor(selectedQuestion)}
-                    disabled={!aiTutorEnabled || currentTutorState?.loading}
+                    disabled={
+                      !aiTutorEnabled ||
+                      currentTutorState?.loading ||
+                      currentDraftAnswer.trim().length === 0
+                    }
                     loading={currentTutorState?.loading}
                     className="full-width-mobile"
                   >
-                    {currentTutorState?.answer ? "Ask Tutor again" : "Ask Tutor"}
+                    {currentTutorState?.answer ? "Ask Tutor again" : "Ask Tutor for feedback"}
+                  </Button>
+                  <Button
+                    icon={
+                      currentMissingChunksState?.loading ? (
+                        <LoadingOutlined />
+                      ) : (
+                        <RobotOutlined />
+                      )
+                    }
+                    onClick={() => void askMissingChunks(selectedQuestion)}
+                    disabled={
+                      !aiTutorEnabled ||
+                      currentMissingChunksState?.loading ||
+                      currentDraftAnswer.trim().length === 0
+                    }
+                    loading={currentMissingChunksState?.loading}
+                    className="full-width-mobile"
+                  >
+                    {currentMissingChunksState?.answer
+                      ? "Suggest missing chunks again"
+                      : "Suggest missing chunks"}
                   </Button>
                 </div>
 
@@ -264,15 +418,48 @@ export function QuestionBankView({
                   />
                 ) : null}
 
-                {currentTutorState?.answer ? (
+                {currentTutorState?.structuredFeedback?.length ? (
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    <Typography.Text strong>AI Tutor speaking feedback</Typography.Text>
+                    <AiStructuredSections sections={currentTutorState.structuredFeedback} />
+                  </Space>
+                ) : currentTutorState?.answer ? (
                   <Card size="small" className="ai-inline-response">
                     <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                      <Typography.Text strong>AI Tutor sample answer</Typography.Text>
+                      <Typography.Text strong>AI Tutor feedback</Typography.Text>
                       <Typography.Paragraph
                         style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
                         className="wrap-anywhere"
                       >
                         {currentTutorState.answer}
+                      </Typography.Paragraph>
+                    </Space>
+                  </Card>
+                ) : null}
+
+                {currentMissingChunksState?.error ? (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="Missing chunk recommendation is unavailable"
+                    description={currentMissingChunksState.error}
+                  />
+                ) : null}
+
+                {currentMissingChunksState?.sections?.length ? (
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    <Typography.Text strong>Missing chunk recommendation</Typography.Text>
+                    <AiStructuredSections sections={currentMissingChunksState.sections} />
+                  </Space>
+                ) : currentMissingChunksState?.answer ? (
+                  <Card size="small" className="ai-inline-response">
+                    <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                      <Typography.Text strong>Missing chunk recommendation</Typography.Text>
+                      <Typography.Paragraph
+                        style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
+                        className="wrap-anywhere"
+                      >
+                        {currentMissingChunksState.answer}
                       </Typography.Paragraph>
                     </Space>
                   </Card>
@@ -313,6 +500,12 @@ export function QuestionBankView({
                               {recommendation.chunk.topic ? (
                                 <Tag>{recommendation.chunk.topic}</Tag>
                               ) : null}
+                              <ChunkCoachTrigger
+                                chunkId={recommendation.chunk.id}
+                                chunkLabel={recommendation.chunk.chunk}
+                                disabled={!aiTutorEnabled}
+                                size="small"
+                              />
                             </Space>
                           }
                           description={

@@ -15,6 +15,7 @@ export async function POST(request: Request) {
       message: payload.message,
       conversationId: payload.conversationId,
       purpose: payload.purpose,
+      context: payload.context,
     });
 
     return NextResponse.json(response);

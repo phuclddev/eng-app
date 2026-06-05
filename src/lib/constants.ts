@@ -7,6 +7,12 @@ export const USER_STATUSES = ["PENDING", "APPROVED", "BLOCKED"] as const;
 export const PRACTICE_MODES = ["LEARN", "REVIEW", "MIXED"] as const;
 export const IELTS_SKILLS = ["SPEAKING"] as const;
 export const IELTS_TASK_TYPES = ["PART_1", "PART_2", "PART_3"] as const;
+export const AI_SIMULATOR_PARTS = [
+  "PART_1",
+  "PART_2",
+  "PART_3",
+  "MIXED",
+] as const;
 export const QUESTION_CHUNK_USAGE_ROLES = [
   "HOOK",
   "MAIN_IDEA",
@@ -55,6 +61,13 @@ export const IELTS_TASK_TYPE_LABELS = {
   PART_3: "Speaking Part 3",
 } as const;
 
+export const AI_SIMULATOR_PART_LABELS = {
+  PART_1: "Speaking Part 1",
+  PART_2: "Speaking Part 2",
+  PART_3: "Speaking Part 3",
+  MIXED: "Mixed Speaking",
+} as const;
+
 export const QUESTION_CHUNK_USAGE_ROLE_LABELS = {
   HOOK: "Hook",
   MAIN_IDEA: "Main Idea",
@@ -87,6 +100,8 @@ export const SIDEBAR_ITEMS = [
   { href: "/learn", label: "Learn Today", adminOnly: false },
   { href: "/questions", label: "Question Bank", adminOnly: false },
   { href: "/ai-tutor", label: "AI Tutor", adminOnly: false },
+  { href: "/speaking-simulator", label: "Speaking Simulator", adminOnly: false },
+  { href: "/study-coach", label: "Study Coach", adminOnly: false },
   { href: "/chunks", label: "Chunk Library", adminOnly: false },
   { href: "/practice", label: "Practice", adminOnly: false },
   { href: "/review", label: "Review", adminOnly: false },
