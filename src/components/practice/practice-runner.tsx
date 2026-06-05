@@ -27,6 +27,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import {
+  AiMarkdownMessage,
+} from "@/components/ai/ai-markdown-message";
+import {
   buildPracticeAiTutorMessage,
   supportsPracticeExerciseAiTutor,
   supportsPracticeMissingChunks,
@@ -478,12 +481,7 @@ export function PracticeRunner({
                 <Card size="small" className="ai-inline-response">
                   <Space direction="vertical" size={8} style={{ width: "100%" }}>
                     <Typography.Text strong>AI Tutor feedback</Typography.Text>
-                    <Typography.Paragraph
-                      style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
-                      className="wrap-anywhere"
-                    >
-                      {aiTutorState.answer}
-                    </Typography.Paragraph>
+                    <AiMarkdownMessage content={aiTutorState.answer} />
                   </Space>
                 </Card>
               ) : null}
@@ -503,12 +501,7 @@ export function PracticeRunner({
                 <Card size="small" className="ai-inline-response">
                   <Space direction="vertical" size={8} style={{ width: "100%" }}>
                     <Typography.Text strong>Missing chunk recommendation</Typography.Text>
-                    <Typography.Paragraph
-                      style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
-                      className="wrap-anywhere"
-                    >
-                      {missingChunksState.answer}
-                    </Typography.Paragraph>
+                    <AiMarkdownMessage content={missingChunksState.answer} />
                   </Space>
                 </Card>
               ) : null}

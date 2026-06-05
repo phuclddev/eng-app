@@ -4,6 +4,7 @@ import { LoadingOutlined, RobotOutlined } from "@ant-design/icons";
 import { Alert, Button, Drawer, Grid, Space, Typography } from "antd";
 import { useState } from "react";
 
+import { AiMarkdownMessage } from "@/components/ai/ai-markdown-message";
 import { AiStructuredSections } from "@/components/ai/ai-structured-sections";
 import type { AiTutorStructuredFeedbackSection } from "@/lib/types";
 
@@ -125,14 +126,7 @@ export function ChunkCoachTrigger({
               type="info"
               showIcon
               message="AI explanation"
-              description={
-                <Typography.Paragraph
-                  className="wrap-anywhere"
-                  style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
-                >
-                  {answer}
-                </Typography.Paragraph>
-              }
+              description={<AiMarkdownMessage content={answer} />}
             />
           ) : null}
         </Space>

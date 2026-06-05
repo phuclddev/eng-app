@@ -25,6 +25,7 @@ import {
 } from "antd";
 import { useState } from "react";
 
+import { AiMarkdownMessage } from "@/components/ai/ai-markdown-message";
 import { AiStructuredSections } from "@/components/ai/ai-structured-sections";
 import {
   AI_SIMULATOR_PART_LABELS,
@@ -365,12 +366,16 @@ export function SpeakingSimulatorView({
                                 : "Examiner"}
                           </Typography.Text>
                         </Space>
-                        <Typography.Paragraph
-                          className="wrap-anywhere"
-                          style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
-                        >
-                          {item.content}
-                        </Typography.Paragraph>
+                        {item.role === "LEARNER" ? (
+                          <Typography.Paragraph
+                            className="wrap-anywhere"
+                            style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
+                          >
+                            {item.content}
+                          </Typography.Paragraph>
+                        ) : (
+                          <AiMarkdownMessage content={item.content} />
+                        )}
                       </Card>
                     </List.Item>
                   )}
@@ -384,12 +389,7 @@ export function SpeakingSimulatorView({
                     showIcon
                     message="Final feedback"
                     description={
-                      <Typography.Paragraph
-                        className="wrap-anywhere"
-                        style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
-                      >
-                        {activeSession.finalFeedback}
-                      </Typography.Paragraph>
+                      <AiMarkdownMessage content={activeSession.finalFeedback} />
                     }
                   />
                 ) : null}

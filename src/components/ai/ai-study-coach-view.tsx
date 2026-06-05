@@ -4,6 +4,7 @@ import { LoadingOutlined, RobotOutlined, SyncOutlined } from "@ant-design/icons"
 import { Alert, Button, Card, Space, Typography } from "antd";
 import { useState } from "react";
 
+import { AiMarkdownMessage } from "@/components/ai/ai-markdown-message";
 import { AiStructuredSections } from "@/components/ai/ai-structured-sections";
 import type { AiStudyCoachSnapshotRecord } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
@@ -128,14 +129,7 @@ export function AiStudyCoachView({
                   type="info"
                   showIcon
                   message="AI Study Coach response"
-                  description={
-                    <Typography.Paragraph
-                      className="wrap-anywhere"
-                      style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
-                    >
-                      {snapshot.answer}
-                    </Typography.Paragraph>
-                  }
+                  description={<AiMarkdownMessage content={snapshot.answer} />}
                 />
               )}
             </>

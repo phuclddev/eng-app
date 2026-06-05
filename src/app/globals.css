@@ -502,6 +502,89 @@ a {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.ai-markdown-message {
+  color: inherit;
+  line-height: 1.65;
+  font-size: 0.96rem;
+}
+
+.ai-markdown-message > :first-child {
+  margin-top: 0;
+}
+
+.ai-markdown-message > :last-child {
+  margin-bottom: 0;
+}
+
+.ai-markdown-message p,
+.ai-markdown-message ul,
+.ai-markdown-message ol,
+.ai-markdown-message pre,
+.ai-markdown-message blockquote {
+  margin: 0 0 10px;
+}
+
+.ai-markdown-message h1,
+.ai-markdown-message h2,
+.ai-markdown-message h3,
+.ai-markdown-message h4,
+.ai-markdown-message h5,
+.ai-markdown-message h6 {
+  margin: 0 0 8px;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.ai-markdown-message h1 {
+  font-size: 1.08rem;
+}
+
+.ai-markdown-message h2,
+.ai-markdown-message h3 {
+  font-size: 1rem;
+}
+
+.ai-markdown-message h4,
+.ai-markdown-message h5,
+.ai-markdown-message h6 {
+  font-size: 0.95rem;
+}
+
+.ai-markdown-message ul,
+.ai-markdown-message ol {
+  padding-inline-start: 20px;
+}
+
+.ai-markdown-message li + li {
+  margin-top: 4px;
+}
+
+.ai-markdown-message code {
+  padding: 0.08rem 0.32rem;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.08);
+  font-size: 0.92em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.ai-markdown-message pre {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.ai-markdown-message pre code {
+  display: block;
+  padding: 0;
+  background: transparent;
+}
+
+.ai-markdown-message a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .simulator-layout {
   display: grid;
   gap: 16px;

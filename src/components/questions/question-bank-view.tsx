@@ -16,6 +16,7 @@ import {
 } from "antd";
 import { useState } from "react";
 
+import { AiMarkdownMessage } from "@/components/ai/ai-markdown-message";
 import {
   getDefaultSpeakingReviewRequest,
 } from "@/lib/ai-tutor";
@@ -427,12 +428,7 @@ export function QuestionBankView({
                   <Card size="small" className="ai-inline-response">
                     <Space direction="vertical" size={8} style={{ width: "100%" }}>
                       <Typography.Text strong>AI Tutor feedback</Typography.Text>
-                      <Typography.Paragraph
-                        style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
-                        className="wrap-anywhere"
-                      >
-                        {currentTutorState.answer}
-                      </Typography.Paragraph>
+                      <AiMarkdownMessage content={currentTutorState.answer} />
                     </Space>
                   </Card>
                 ) : null}
@@ -455,12 +451,7 @@ export function QuestionBankView({
                   <Card size="small" className="ai-inline-response">
                     <Space direction="vertical" size={8} style={{ width: "100%" }}>
                       <Typography.Text strong>Missing chunk recommendation</Typography.Text>
-                      <Typography.Paragraph
-                        style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
-                        className="wrap-anywhere"
-                      >
-                        {currentMissingChunksState.answer}
-                      </Typography.Paragraph>
+                      <AiMarkdownMessage content={currentMissingChunksState.answer} />
                     </Space>
                   </Card>
                 ) : null}

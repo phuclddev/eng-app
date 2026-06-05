@@ -21,6 +21,7 @@ import {
 } from "antd";
 import { useState } from "react";
 
+import { AiMarkdownMessage } from "@/components/ai/ai-markdown-message";
 import { getAiTutorStarterPrompt } from "@/lib/ai-tutor";
 import { AI_TUTOR_PURPOSE_LABELS } from "@/lib/constants";
 import type { AiTutorPurpose } from "@/lib/types";
@@ -203,12 +204,16 @@ export function AiTutorChat({
                         {item.role === "assistant" ? "AI Tutor" : "You"}
                       </Typography.Text>
                     </Space>
-                    <Typography.Paragraph
-                      className="wrap-anywhere"
-                      style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
-                    >
-                      {item.text}
-                    </Typography.Paragraph>
+                    {item.role === "assistant" ? (
+                      <AiMarkdownMessage content={item.text} />
+                    ) : (
+                      <Typography.Paragraph
+                        className="wrap-anywhere"
+                        style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
+                      >
+                        {item.text}
+                      </Typography.Paragraph>
+                    )}
                   </Card>
                 </List.Item>
               )}

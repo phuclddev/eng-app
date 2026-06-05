@@ -2,6 +2,7 @@
 
 import { Card, Empty, Space, Typography } from "antd";
 
+import { AiMarkdownMessage } from "@/components/ai/ai-markdown-message";
 import type { AiTutorStructuredFeedbackSection } from "@/lib/types";
 
 export function AiStructuredSections({
@@ -26,12 +27,7 @@ export function AiStructuredSections({
         <Card key={section.key} size="small" className="ai-inline-response">
           <Space direction="vertical" size={8} style={{ width: "100%" }}>
             <Typography.Text strong>{section.title}</Typography.Text>
-            <Typography.Paragraph
-              className="wrap-anywhere"
-              style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
-            >
-              {section.content}
-            </Typography.Paragraph>
+            <AiMarkdownMessage content={section.content} />
           </Space>
         </Card>
       ))}
