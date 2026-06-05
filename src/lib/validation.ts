@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  AI_TUTOR_PURPOSES,
   CONFIDENCE_LEVELS,
   EXERCISE_TYPES,
   IELTS_SKILLS,
@@ -110,6 +111,16 @@ export const practiceSubmissionSchema = z.object({
     .min(1),
 });
 
+export const aiTutorChatSchema = z.object({
+  message: z
+    .string()
+    .trim()
+    .min(2, "Message is required.")
+    .max(4000, "Message is too long."),
+  conversationId: z.string().trim().min(1).optional(),
+  purpose: z.enum(AI_TUTOR_PURPOSES).optional().default("GENERAL_CHAT"),
+});
+
 export const chunkCsvRowSchema = z.object({
   chunk: z.string().trim().min(2),
   meaning: z.string().trim().min(2),
@@ -146,3 +157,4 @@ export type QuestionChunkMappingsFormValues = z.infer<
   typeof questionChunkMappingsFormSchema
 >;
 export type PracticeSubmission = z.infer<typeof practiceSubmissionSchema>;
+export type AiTutorChatPayload = z.infer<typeof aiTutorChatSchema>;

@@ -7,3 +7,7 @@
 - Logs redact tokens, cookies, passwords, and secrets.
 - `.env` is ignored from git and `.env.example` carries only placeholders.
 - Pending and blocked users can sign in but cannot access study routes.
+- `AI_CHATFLOW_TOKEN` stays server-side only and is never exposed to browser code.
+- AI Tutor requests require authenticated, approved users and reuse only conversations owned by the current user.
+- The app stores only internal AI conversation metadata plus the upstream conversation id mapping; it does not expose upstream bearer credentials or authorization headers in logs.
+- Rate limiting for `/api/ai-tutor/chat` is still a TODO before heavier production traffic.

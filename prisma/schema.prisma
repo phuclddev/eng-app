@@ -57,6 +57,13 @@ enum QuestionChunkUsageRole {
   CLOSING
 }
 
+enum AiConversationPurpose {
+  GENERAL_CHAT
+  SENTENCE_CORRECTION
+  SPEAKING_COACH
+  CHUNK_EXPLANATION
+}
+
 model User {
   id               String            @id @default(cuid())
   name             String?
@@ -74,6 +81,7 @@ model User {
   sessions         Session[]
   createdChunks    Chunk[]           @relation("ChunkCreator")
   createdQuestions IeltsQuestion[]   @relation("QuestionCreator")
+  aiConversations  AiConversation[]
   practiceAnswers  PracticeAnswer[]
   practiceSessions PracticeSession[]
   reviewSchedules  ReviewSchedule[]
@@ -224,6 +232,19 @@ model IeltsQuestionChunkMapping {
   @@unique([questionId, chunkId, usageRole])
   @@index([questionId, sortOrder])
   @@index([chunkId])
+}
+
+model AiConversation {
+  id                     String                @id @default(cuid())
+  userId                 String
+  externalConversationId String                @unique @db.VarChar(191)
+  purpose                AiConversationPurpose @default(GENERAL_CHAT)
+  title                  String                @db.VarChar(191)
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  user                   User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt(sort: Desc)])
 }
 
 model Account {

@@ -459,6 +459,49 @@ a {
   min-height: 48px;
 }
 
+.ai-tutor-chat .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ai-tutor-chat__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-tutor-chat__messages .ant-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-tutor-chat__item {
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.ai-tutor-chat__bubble {
+  width: min(100%, 820px);
+  border-radius: 18px;
+}
+
+.ai-tutor-chat__bubble-user {
+  margin-left: auto;
+  background: rgba(15, 118, 110, 0.08);
+  border-color: rgba(15, 118, 110, 0.18);
+}
+
+.ai-tutor-chat__bubble-assistant {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.ai-inline-response {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
 @media (max-width: 900px) {
   .hero-card {
     padding: 28px;
@@ -528,6 +571,10 @@ a {
   }
 
   .practice-runner__sticky .ant-btn {
+    width: 100%;
+  }
+
+  .ai-tutor-chat__bubble {
     width: 100%;
   }
 }

@@ -21,3 +21,10 @@
 - Reworked learner mobile layouts for practice, chunk browsing, dashboard, learn, progress, and question bank views to avoid horizontal overflow and improve tap targets
 - Added mobile-safe admin list/card fallbacks, safer table scrolling, and block confirmations for user moderation
 - Added Playwright mobile viewport coverage for root/auth redirect plus protected-route smoke definitions for dashboard, practice, review, and chunks
+
+## 2026-06-05
+
+- Added AI Tutor foundation using the external chatflow API through a server-only client and approved-user API route
+- Added `AiConversation` persistence so internal conversation ids stay user-owned and safe from cross-user reuse
+- Added `/ai-tutor` learner chat UI plus optional AI help inside practice production exercises and speaking question detail
+- Added AI Tutor env placeholders, security/deployment/API docs, and test coverage for client parsing, route RBAC, helper logic, and conversation ownership

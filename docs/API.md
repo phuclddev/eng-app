@@ -55,6 +55,28 @@
 - Learner route: `GET /questions`
 - Admin route: `GET /admin/questions`
 
+## AI Tutor
+
+- Learner route: `GET /ai-tutor`
+- Chat API: `POST /api/ai-tutor/chat`
+
+### `POST /api/ai-tutor/chat`
+
+- Requires an authenticated and `APPROVED` user.
+- Accepts JSON:
+  - `message`: string
+  - `conversationId`: optional internal AI conversation id owned by the current user
+  - `purpose`: optional one of:
+    - `GENERAL_CHAT`
+    - `SENTENCE_CORRECTION`
+    - `SPEAKING_COACH`
+    - `CHUNK_EXPLANATION`
+- Returns:
+  - `answer`
+  - `conversationId`
+- The route resolves the internal conversation id to the stored upstream `conversation_id` on the server, so users cannot reuse another user's conversation thread.
+- Practice and question-bank AI helpers both call this route but do not block normal learner flows if the upstream AI fails.
+
 ## Practice
 
 - `POST /api/practice/submit`

@@ -1,8 +1,22 @@
 "use client";
 
-import { Card, Empty, Grid, Input, List, Select, Space, Tag, Typography } from "antd";
+import { LoadingOutlined, RobotOutlined } from "@ant-design/icons";
+import {
+  Alert,
+  Button,
+  Card,
+  Empty,
+  Grid,
+  Input,
+  List,
+  Select,
+  Space,
+  Tag,
+  Typography,
+} from "antd";
 import { useState } from "react";
 
+import { buildQuestionAiTutorMessage } from "@/lib/ai-tutor";
 import {
   IELTS_SKILL_LABELS,
   IELTS_TASK_TYPE_LABELS,
@@ -11,8 +25,10 @@ import {
 import type { IeltsQuestionRecord, IeltsTaskType } from "@/lib/types";
 
 export function QuestionBankView({
+  aiTutorEnabled,
   questions,
 }: {
+  aiTutorEnabled: boolean;
   questions: IeltsQuestionRecord[];
 }) {
   const screens = Grid.useBreakpoint();
@@ -22,6 +38,17 @@ export function QuestionBankView({
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | undefined>(
     questions[0]?.id,
   );
+  const [questionTutorStates, setQuestionTutorStates] = useState<
+    Record<
+      string,
+      {
+        answer?: string;
+        conversationId?: string;
+        error?: string;
+        loading: boolean;
+      }
+    >
+  >({});
 
   const filteredQuestions = questions.filter((question) => {
     const matchesTask = taskType ? question.taskType === taskType : true;
@@ -40,6 +67,72 @@ export function QuestionBankView({
     filteredQuestions.find((question) => question.id === selectedQuestionId) ??
     filteredQuestions[0];
   const activeQuestionId = selectedQuestion?.id;
+  const currentTutorState = activeQuestionId
+    ? questionTutorStates[activeQuestionId]
+    : undefined;
+
+  const askTutor = async (question: IeltsQuestionRecord) => {
+    if (!aiTutorEnabled) {
+      return;
+    }
+
+    setQuestionTutorStates((currentStates) => ({
+      ...currentStates,
+      [question.id]: {
+        ...currentStates[question.id],
+        error: undefined,
+        loading: true,
+      },
+    }));
+
+    try {
+      const response = await fetch("/api/ai-tutor/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: buildQuestionAiTutorMessage(question),
+          conversationId: questionTutorStates[question.id]?.conversationId,
+          purpose: "SPEAKING_COACH",
+        }),
+      });
+      const data = (await response.json()) as {
+        answer?: string;
+        conversationId?: string;
+        message?: string;
+      };
+
+      if (!response.ok || !data.answer || !data.conversationId) {
+        throw new Error(data.message ?? "AI Tutor could not coach this prompt.");
+      }
+
+      const safeAnswer = data.answer;
+      const safeConversationId = data.conversationId;
+
+      setQuestionTutorStates((currentStates) => ({
+        ...currentStates,
+        [question.id]: {
+          answer: safeAnswer,
+          conversationId: safeConversationId,
+          error: undefined,
+          loading: false,
+        },
+      }));
+    } catch (error) {
+      setQuestionTutorStates((currentStates) => ({
+        ...currentStates,
+        [question.id]: {
+          ...currentStates[question.id],
+          error:
+            error instanceof Error
+              ? error.message
+              : "AI Tutor could not coach this prompt.",
+          loading: false,
+        },
+      }));
+    }
+  };
 
   return (
     <div className="stacked-view">
@@ -139,6 +232,51 @@ export function QuestionBankView({
                 <Typography.Title level={4} style={{ margin: 0 }}>
                   {selectedQuestion.prompt}
                 </Typography.Title>
+
+                <div className="mobile-actions">
+                  <Button
+                    icon={
+                      currentTutorState?.loading ? <LoadingOutlined /> : <RobotOutlined />
+                    }
+                    onClick={() => void askTutor(selectedQuestion)}
+                    disabled={!aiTutorEnabled || currentTutorState?.loading}
+                    loading={currentTutorState?.loading}
+                    className="full-width-mobile"
+                  >
+                    {currentTutorState?.answer ? "Ask Tutor again" : "Ask Tutor"}
+                  </Button>
+                </div>
+
+                {!aiTutorEnabled ? (
+                  <Alert
+                    type="info"
+                    showIcon
+                    message="AI Tutor is not configured on this environment."
+                  />
+                ) : null}
+
+                {currentTutorState?.error ? (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="AI Tutor is unavailable"
+                    description={currentTutorState.error}
+                  />
+                ) : null}
+
+                {currentTutorState?.answer ? (
+                  <Card size="small" className="ai-inline-response">
+                    <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                      <Typography.Text strong>AI Tutor sample answer</Typography.Text>
+                      <Typography.Paragraph
+                        style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
+                        className="wrap-anywhere"
+                      >
+                        {currentTutorState.answer}
+                      </Typography.Paragraph>
+                    </Space>
+                  </Card>
+                ) : null}
 
                 {selectedQuestion.supportingPoints.length > 0 ? (
                   <div>

@@ -1,3 +1,5 @@
+import { ZodError } from "zod";
+
 export class AppError extends Error {
   constructor(
     message: string,
@@ -28,6 +30,20 @@ export class ForbiddenError extends AppError {
 }
 
 export function getErrorResponse(error: unknown) {
+  if (error instanceof ZodError) {
+    return {
+      status: 400,
+      body: {
+        error: "VALIDATION_ERROR",
+        message: "Submitted data is invalid.",
+        issues: error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
+      },
+    };
+  }
+
   if (error instanceof AppError) {
     return {
       status: error.statusCode,

@@ -15,6 +15,12 @@ export const QUESTION_CHUNK_USAGE_ROLES = [
   "OPINION",
   "CLOSING",
 ] as const;
+export const AI_TUTOR_PURPOSES = [
+  "GENERAL_CHAT",
+  "SENTENCE_CORRECTION",
+  "SPEAKING_COACH",
+  "CHUNK_EXPLANATION",
+] as const;
 export const EXERCISE_TYPES = [
   "MULTIPLE_CHOICE",
   "FILL_IN_BLANK",
@@ -58,6 +64,13 @@ export const QUESTION_CHUNK_USAGE_ROLE_LABELS = {
   CLOSING: "Closing",
 } as const;
 
+export const AI_TUTOR_PURPOSE_LABELS = {
+  GENERAL_CHAT: "General Chat",
+  SENTENCE_CORRECTION: "Sentence Correction",
+  SPEAKING_COACH: "Speaking Coach",
+  CHUNK_EXPLANATION: "Chunk Explanation",
+} as const;
+
 export const ROLE_LABELS = {
   USER: "Learner",
   ADMIN: "Admin",
@@ -73,6 +86,7 @@ export const SIDEBAR_ITEMS = [
   { href: "/dashboard", label: "Dashboard", adminOnly: false },
   { href: "/learn", label: "Learn Today", adminOnly: false },
   { href: "/questions", label: "Question Bank", adminOnly: false },
+  { href: "/ai-tutor", label: "AI Tutor", adminOnly: false },
   { href: "/chunks", label: "Chunk Library", adminOnly: false },
   { href: "/practice", label: "Practice", adminOnly: false },
   { href: "/review", label: "Review", adminOnly: false },

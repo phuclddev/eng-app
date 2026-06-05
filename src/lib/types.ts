@@ -2,6 +2,7 @@ import type {
   IELTS_SKILLS,
   IELTS_TASK_TYPES,
   QUESTION_CHUNK_USAGE_ROLES,
+  AI_TUTOR_PURPOSES,
   CONFIDENCE_LEVELS,
   EXERCISE_TYPES,
   PRACTICE_MODES,
@@ -15,6 +16,7 @@ export type PracticeMode = (typeof PRACTICE_MODES)[number];
 export type IeltsSkill = (typeof IELTS_SKILLS)[number];
 export type IeltsTaskType = (typeof IELTS_TASK_TYPES)[number];
 export type QuestionChunkUsageRole = (typeof QUESTION_CHUNK_USAGE_ROLES)[number];
+export type AiTutorPurpose = (typeof AI_TUTOR_PURPOSES)[number];
 export type ExerciseType = (typeof EXERCISE_TYPES)[number];
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
 export type PracticeLearningStage =

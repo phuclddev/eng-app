@@ -3,6 +3,7 @@
 import {
   CheckCircleOutlined,
   LoadingOutlined,
+  RobotOutlined,
   RightCircleOutlined,
 } from "@ant-design/icons";
 import {
@@ -26,6 +27,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import {
+  buildPracticeAiTutorMessage,
+  supportsPracticeExerciseAiTutor,
+} from "@/lib/ai-tutor";
+import {
   CONFIDENCE_LABELS,
   EXERCISE_LABELS,
 } from "@/lib/constants";
@@ -43,11 +48,13 @@ import type {
 type SubmissionSummary = ReturnType<typeof buildPracticeSummary>;
 
 export function PracticeRunner({
+  aiTutorEnabled,
   deck,
   mode,
   title,
   description,
 }: {
+  aiTutorEnabled: boolean;
   deck: PracticeDeck;
   mode: PracticeMode;
   title: string;
@@ -67,6 +74,14 @@ export function PracticeRunner({
     isCorrect: boolean;
     responseMs: number;
   } | null>(null);
+  const [aiTutorState, setAiTutorState] = useState<{
+    answer?: string;
+    conversationId?: string;
+    error?: string;
+    loading: boolean;
+  }>({
+    loading: false,
+  });
   const [submitting, setSubmitting] = useState(false);
   const [summary, setSummary] = useState<SubmissionSummary | null>(null);
 
@@ -123,6 +138,7 @@ export function PracticeRunner({
                 setIndex(0);
                 setAnswer("");
                 setChecked(null);
+                setAiTutorState({ loading: false });
                 setStepStartedAt(Date.now());
               }}
             >
@@ -167,6 +183,7 @@ export function PracticeRunner({
       setIndex(index + 1);
       setAnswer("");
       setChecked(null);
+      setAiTutorState({ loading: false });
       setConfidence("MEDIUM");
       setStepStartedAt(Date.now());
       return;
@@ -197,6 +214,67 @@ export function PracticeRunner({
     setSummary(data.summary as SubmissionSummary);
     router.refresh();
   };
+
+  const askAiTutor = async () => {
+    if (!checked || !supportsPracticeExerciseAiTutor(exercise.type) || !answer.trim()) {
+      return;
+    }
+
+    setAiTutorState((currentState) => ({
+      ...currentState,
+      error: undefined,
+      loading: true,
+    }));
+
+    try {
+      const response = await fetch("/api/ai-tutor/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: buildPracticeAiTutorMessage(exercise, answer),
+          conversationId: aiTutorState.conversationId,
+          purpose: "SENTENCE_CORRECTION",
+        }),
+      });
+      const data = (await response.json()) as {
+        answer?: string;
+        conversationId?: string;
+        message?: string;
+      };
+
+      if (!response.ok || !data.answer || !data.conversationId) {
+        throw new Error(data.message ?? "AI Tutor could not review this answer.");
+      }
+
+      const safeAnswer = data.answer;
+      const safeConversationId = data.conversationId;
+
+      setAiTutorState({
+        answer: safeAnswer,
+        conversationId: safeConversationId,
+        error: undefined,
+        loading: false,
+      });
+    } catch (error) {
+      setAiTutorState((currentState) => ({
+        ...currentState,
+        answer: currentState.answer,
+        error:
+          error instanceof Error
+            ? error.message
+            : "AI Tutor could not review this answer.",
+        loading: false,
+      }));
+    }
+  };
+
+  const canAskAiTutor =
+    aiTutorEnabled &&
+    Boolean(checked) &&
+    supportsPracticeExerciseAiTutor(exercise.type) &&
+    answer.trim().length > 0;
 
   return (
     <Space direction="vertical" size={20} style={{ width: "100%" }}>
@@ -275,6 +353,45 @@ export function PracticeRunner({
                 </span>
               }
             />
+          ) : null}
+
+          {canAskAiTutor ? (
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <div className="mobile-actions">
+                <Button
+                  icon={aiTutorState.loading ? <LoadingOutlined /> : <RobotOutlined />}
+                  onClick={() => void askAiTutor()}
+                  disabled={aiTutorState.loading}
+                  loading={aiTutorState.loading}
+                  className="full-width-mobile"
+                >
+                  {aiTutorState.answer ? "Ask AI Tutor again" : "Ask AI Tutor"}
+                </Button>
+              </div>
+
+              {aiTutorState.error ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="AI Tutor is unavailable"
+                  description={aiTutorState.error}
+                />
+              ) : null}
+
+              {aiTutorState.answer ? (
+                <Card size="small" className="ai-inline-response">
+                  <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                    <Typography.Text strong>AI Tutor feedback</Typography.Text>
+                    <Typography.Paragraph
+                      style={{ marginBottom: 0, whiteSpace: "pre-wrap" }}
+                      className="wrap-anywhere"
+                    >
+                      {aiTutorState.answer}
+                    </Typography.Paragraph>
+                  </Space>
+                </Card>
+              ) : null}
+            </Space>
           ) : null}
 
           <Space direction="vertical" size={8} style={{ width: "100%" }}>
