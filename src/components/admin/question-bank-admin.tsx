@@ -20,6 +20,7 @@ import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
+import { SpeakingSampleAnswerPanel } from "@/components/ai/speaking-sample-answer-panel";
 import {
   IELTS_TASK_TYPE_LABELS,
   QUESTION_CHUNK_USAGE_ROLES,
@@ -33,9 +34,11 @@ import type {
 import { saveQuestionChunkMappingsAction } from "@/server/actions/admin";
 
 export function QuestionBankAdmin({
+  aiTutorEnabled,
   chunkOptions,
   questions,
 }: {
+  aiTutorEnabled: boolean;
   chunkOptions: ChunkOption[];
   questions: IeltsQuestionRecord[];
 }) {
@@ -318,6 +321,11 @@ export function QuestionBankAdmin({
                 renderItem={(point) => <List.Item>{point}</List.Item>}
               />
             ) : null}
+
+            <SpeakingSampleAnswerPanel
+              aiTutorEnabled={aiTutorEnabled}
+              question={editingQuestion}
+            />
 
             <Form form={form} layout="vertical">
               <Form.Item name="questionId" hidden>

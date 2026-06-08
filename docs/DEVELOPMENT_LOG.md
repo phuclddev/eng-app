@@ -31,6 +31,7 @@
 - Added structured IELTS Speaking feedback mode with server-side prompt building and section parsing for speaking answer coaching
 - Added AI Chunk Coach with structured chunk explanations from chunk library, practice, and speaking prompt chunk suggestions
 - Added AI Missing Chunk Recommendation for speaking answers plus production-style practice answers
+- Added AI Sample Answer generation for speaking prompts using bounded chunk selection from mapped, same-topic, and general chunk pools
 - Added Speaking Simulator with ownership-safe persisted sessions, local message history, upstream thread reuse, and structured final feedback
 - Added AI Study Coach with compact learner-profile generation, cached snapshots, and dashboard-linked learner guidance
-- Added advanced AI prompt-builder coverage, simulator ownership tests, route validation tests, and updated architecture/security/testing notes
+- Added advanced AI prompt-builder coverage, sample-answer selection tests, route validation tests, and updated architecture/security/testing notes

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildChunkCoachPrompt } from "@/server/ai/prompts/chunk-coach";
 import { buildMissingChunksPrompt } from "@/server/ai/prompts/missing-chunks";
+import { buildSampleAnswerPrompt } from "@/server/ai/prompts/sample-answer";
 import {
   buildSpeakingSimulatorStartPrompt,
   buildSpeakingSimulatorTurnPrompt,
@@ -129,5 +130,36 @@ describe("advanced AI prompt builders", () => {
     expect(prompt).toContain("\"dueReviews\": 12");
     expect(prompt).toContain("1. Short diagnosis");
     expect(prompt).toContain("5. 7-day mini study plan");
+  });
+
+  it("builds sample answer prompts with prompt context and chunk usage rules", () => {
+    const prompt = buildSampleAnswerPrompt({
+      taskType: "PART_2",
+      topic: "Travel",
+      subTopic: "Memorable trip",
+      prompt: "Describe a memorable trip you enjoyed.",
+      supportingPoints: [
+        "where you went",
+        "who you went with",
+      ],
+      targetBand: 6.5,
+      recommendedChunks: [
+        {
+          chunk: "make the most of",
+          meaningVi: "tan dung toi da",
+          usageRole: "MAIN_IDEA",
+          bandLevel: 6.5,
+          topic: "Travel",
+          example: "I tried to make the most of every single day.",
+          source: "RECOMMENDED",
+        },
+      ],
+    });
+
+    expect(prompt).toContain("Prompt: Describe a memorable trip you enjoyed.");
+    expect(prompt).toContain("Every used chunk must be wrapped in Markdown bold");
+    expect(prompt).toContain("## Sample answer");
+    expect(prompt).toContain("make the most of");
+    expect(prompt).toContain("180-250 words.");
   });
 });

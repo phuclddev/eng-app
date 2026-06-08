@@ -268,3 +268,20 @@ export type AiStudyCoachSnapshotRecord = {
   generatedAt: string;
   expiresAt: string | null;
 };
+
+export type AiSampleAnswerUsedChunk = {
+  id: string;
+  chunk: string;
+  meaningVi: string;
+  topic: string | null;
+  bandLevel: number;
+  usageRole: QuestionChunkUsageRole | null;
+};
+
+export type AiSampleAnswerResponse = {
+  answer: string;
+  speakingPromptId: string;
+  selectedChunkCount: number;
+  targetBand: number;
+  usedChunks: AiSampleAnswerUsedChunk[];
+};

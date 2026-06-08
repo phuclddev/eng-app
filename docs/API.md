@@ -63,6 +63,7 @@
 - Chat API: `POST /api/ai-tutor/chat`
 - Chunk Coach API: `POST /api/ai-tutor/chunk-coach`
 - Missing Chunk API: `POST /api/ai-tutor/missing-chunks`
+- Sample Answer API: `POST /api/ai-tutor/sample-answer`
 - Speaking Simulator start API: `POST /api/ai-tutor/speaking-simulator/start`
 - Speaking Simulator message API: `POST /api/ai-tutor/speaking-simulator/message`
 - Study Coach API: `POST /api/ai-tutor/study-coach`
@@ -134,6 +135,32 @@
   - `CREATE_SENTENCE`
   - `REWRITE_SENTENCE`
 - Falls back to plain text if the AI answer is not structured.
+
+### `POST /api/ai-tutor/sample-answer`
+
+- Requires an authenticated and `APPROVED` user.
+- Accepts JSON:
+  - `speakingPromptId`
+  - `targetBand` optional
+  - `maxChunks` optional, defaults to `30`, hard max `80`
+- Loads the speaking prompt context on the server:
+  - `taskType`
+  - `topic`
+  - `subTopic`
+  - `prompt`
+  - `supportingPoints`
+  - mapped recommended chunks
+- Builds a bounded chunk context from the active chunk library:
+  - mapped chunks first
+  - same-topic chunks next
+  - high-value general speaking chunks last
+- Returns:
+  - `answer`
+  - `speakingPromptId`
+  - `targetBand`
+  - `selectedChunkCount`
+  - `usedChunks`
+- The answer is generate-only for now and is not yet persisted to a dedicated sample-answer table.
 
 ### `POST /api/ai-tutor/speaking-simulator/start`
 

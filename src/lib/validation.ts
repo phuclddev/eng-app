@@ -196,6 +196,12 @@ export const aiStudyCoachSchema = z.object({
   forceRefresh: z.boolean().optional().default(false),
 });
 
+export const aiSampleAnswerSchema = z.object({
+  speakingPromptId: z.string().trim().min(1, "Speaking prompt is required."),
+  targetBand: z.coerce.number().min(4).max(9).optional(),
+  maxChunks: z.coerce.number().int().min(1).max(80).optional().default(30),
+});
+
 export const chunkCsvRowSchema = z.object({
   chunk: z.string().trim().min(2),
   meaning: z.string().trim().min(2),
@@ -242,3 +248,4 @@ export type AiSpeakingSimulatorMessagePayload = z.infer<
   typeof aiSpeakingSimulatorMessageSchema
 >;
 export type AiStudyCoachPayload = z.infer<typeof aiStudyCoachSchema>;
+export type AiSampleAnswerPayload = z.infer<typeof aiSampleAnswerSchema>;

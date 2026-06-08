@@ -12,6 +12,7 @@
 - The app stores only internal AI conversation metadata plus the upstream conversation id mapping; it does not expose upstream bearer credentials or authorization headers in logs.
 - Rate limiting for `/api/ai-tutor/chat` is still a TODO before heavier production traffic.
 - Advanced AI Tutor routes for chunk coaching, missing chunk recommendations, simulator, and study coach all require authenticated and `APPROVED` users.
+- The sample-answer route also requires authenticated and `APPROVED` users.
 - Speaking Simulator ownership is enforced through stored `AiSimulatorSession.userId`; a user cannot continue another user's simulator thread by guessing ids.
 - The simulator uses the stored upstream `conversation_id` on the server and never trusts a browser-provided upstream thread id.
 - Study Coach sends a compact learner profile rather than the full practice history:
@@ -21,4 +22,6 @@
   - recent answer signals
   - prompt suggestions
 - Logs should contain route-level metadata only and should not include bearer tokens or raw authorization headers.
+- Sample-answer logging includes user id, prompt id, and chunk counts only; it should not log the full generated answer or AI bearer token.
+- Sample-answer chunk context is bounded on the server so the app does not send the entire chunk database upstream by default.
 - AI helper failures are non-blocking for normal learning flows, which reduces the risk of an upstream outage affecting practice or review submission.

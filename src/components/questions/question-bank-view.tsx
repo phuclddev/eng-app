@@ -17,6 +17,7 @@ import {
 import { useState } from "react";
 
 import { AiMarkdownMessage } from "@/components/ai/ai-markdown-message";
+import { SpeakingSampleAnswerPanel } from "@/components/ai/speaking-sample-answer-panel";
 import {
   getDefaultSpeakingReviewRequest,
 } from "@/lib/ai-tutor";
@@ -455,6 +456,11 @@ export function QuestionBankView({
                     </Space>
                   </Card>
                 ) : null}
+
+                <SpeakingSampleAnswerPanel
+                  aiTutorEnabled={aiTutorEnabled}
+                  question={selectedQuestion}
+                />
 
                 {selectedQuestion.supportingPoints.length > 0 ? (
                   <div>

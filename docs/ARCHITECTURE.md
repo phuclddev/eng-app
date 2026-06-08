@@ -30,6 +30,7 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
 - Structured AI features added on top of the base chat route:
   - Chunk Coach
   - Missing Chunk Recommendation
+  - Sample Answer Generation
   - Speaking Simulator
   - Study Coach
 
@@ -105,6 +106,14 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
   - speaking prompt answer coaching
   - `CREATE_SENTENCE`
   - `REWRITE_SENTENCE`
+- Sample Answer Generation can be requested from:
+  - learner speaking prompt detail
+  - admin question preview drawer
+- The sample-answer service keeps context bounded:
+  - mapped chunks first
+  - same-topic chunks second
+  - high-value general chunks last
+- The selected chunk set is capped before being sent to AI, and the response remains Markdown-only so it can be rendered safely through the shared AI Markdown component.
 - Speaking Simulator is a dedicated learner route that keeps thread context through the stored upstream `conversation_id`.
 - Study Coach builds a compact profile from dashboard and progress data, then caches the AI plan to reduce repeated token usage.
 
