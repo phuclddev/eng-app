@@ -64,6 +64,41 @@ Use Node `22+` for local test execution. In this environment, `pnpm test` on the
   - fallback behavior
   - missing-chunk helper summaries
 
+## Family English coverage focus
+
+- `src/tests/family-profile-service.test.ts`
+  - bootstrap-owner profile seeding
+  - generic-template fallback
+  - family profile upsert idempotency
+- `src/tests/family-prompts.test.ts`
+  - family-specific prompt builders
+  - non-IELTS prompt tone
+- `src/tests/family-scenario-service.test.ts`
+  - scenario validation
+  - bootstrap default seeding
+  - scenario ownership protection
+- `src/tests/family-conversation-service.test.ts`
+  - missing active profile handling
+  - AI failure fallback
+  - conversation save behavior
+- `src/tests/family-conversation-route.test.ts`
+  - approved-user enforcement
+  - input validation
+  - missing-profile error propagation
+- `src/tests/family-chunk-service.test.ts`
+  - chunk edit validation
+  - extraction duplicate skipping
+  - invalid AI output fallback
+  - approve/archive transitions
+  - bulk status updates
+- `src/tests/family-chunk-extract-route.test.ts`
+  - approved-user enforcement
+  - input validation
+  - conversation ownership protection
+- `src/tests/middleware.test.ts`
+  - `/family` and `/family/profile` auth redirects
+  - approved-user access to family routes
+
 ## Coverage focus
 
 - spaced repetition scheduling
@@ -80,3 +115,17 @@ Use Node `22+` for local test execution. In this environment, `pnpm test` on the
 - Confirm final simulator feedback appears after the configured number of turns.
 - Confirm Study Coach loads from real learner progress data and can refresh without exposing secrets.
 - Confirm AI route failures show friendly errors and do not block normal practice/review submission.
+
+## Manual Family English verification checklist
+
+- Confirm `/family` appears under its own `Family English` navigation group on desktop.
+- Confirm mobile drawer navigation includes the Family English section without crowding existing IELTS links.
+- Confirm unauthenticated `/family` and `/family/profile` requests redirect into `/signin?...&auto=true`.
+- Confirm approved users can open `/family/profile`, edit markdown, and save without affecting IELTS pages.
+- Confirm the bootstrap owner sees the seeded Phuc family profile and other users see the generic template.
+- Confirm `/family/scenarios` supports create, edit, archive, and child/category filtering.
+- Confirm `/family/conversations` can generate, render Markdown, copy, and delete conversations.
+- Confirm `/family/conversations` can extract chunks and show the created/skipped summary without breaking the conversation detail view.
+- Confirm `/family/chunks` supports manual add, edit, approve, archive, restore, bulk approve/archive, and all filters.
+- Confirm duplicate extraction does not create duplicate family chunks for the same user.
+- Confirm family routes stay separate from IELTS pages during the same session.

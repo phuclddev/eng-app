@@ -382,6 +382,27 @@ a {
   grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
 }
 
+.family-form-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.family-conversation-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+}
+
+.family-conversation-card {
+  border-radius: 18px;
+}
+
+.family-conversation-card--active {
+  border-color: rgba(15, 118, 110, 0.35);
+  box-shadow: 0 0 0 1px rgba(15, 118, 110, 0.12);
+}
+
 .question-list-item {
   cursor: pointer;
   border-radius: 12px;
@@ -661,6 +682,10 @@ a {
   }
 
   .question-bank-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .family-conversation-layout {
     grid-template-columns: 1fr;
   }
 

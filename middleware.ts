@@ -46,6 +46,7 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/learn/:path*",
+    "/family/:path*",
     "/questions/:path*",
     "/ai-tutor/:path*",
     "/speaking-simulator/:path*",

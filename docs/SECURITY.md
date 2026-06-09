@@ -25,3 +25,17 @@
 - Sample-answer logging includes user id, prompt id, and chunk counts only; it should not log the full generated answer or AI bearer token.
 - Sample-answer chunk context is bounded on the server so the app does not send the entire chunk database upstream by default.
 - AI helper failures are non-blocking for normal learning flows, which reduces the risk of an upstream outage affecting practice or review submission.
+- Family English routes also require authenticated and `APPROVED` users.
+- Family profile data is private to the signed-in owner in the current phase and is not merged into IELTS learning data by default.
+- The seeded Phuc family profile is used only for the bootstrap owner's `FamilyProfile`; other users get a generic template.
+- The app should not log full family-profile markdown or unnecessary child details in route-level logs.
+- Family scenarios, family conversations, and family chunks are user-owned records and must be filtered by `userId` before read, update, archive, or delete behavior.
+- The family conversation generation route logs only metadata such as `userId`, `scenarioId`, and generation settings.
+- The family chunk extraction route logs only metadata such as `userId`, `conversationId`, and summary counts.
+- The app should not log the full generated family conversation, the full family profile, or the AI bearer token.
+- The app should not log full extracted family chunk payloads unless debugging is explicitly required.
+- Default Phuc-specific family scenarios are seeded only for the bootstrap owner account and are not automatically created for unrelated users.
+- Family chunk extraction validates all AI output before saving so invalid AI JSON does not create partial bad data.
+- Duplicate family chunks are blocked per user by normalized text, including during AI extraction.
+- Family chunks remain isolated from IELTS chunks by design and are not auto-enrolled into IELTS learning flows.
+- Future family roleplay sessions must continue enforcing per-user ownership before data is shown or edited.

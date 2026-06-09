@@ -27,6 +27,35 @@ export const AI_TUTOR_PURPOSES = [
   "SPEAKING_COACH",
   "CHUNK_EXPLANATION",
 ] as const;
+export const FAMILY_CHILD_FOCUS = ["KIWI", "VIVI", "BOTH"] as const;
+export const FAMILY_CHUNK_CHILD_FOCUS = [
+  "KIWI",
+  "VIVI",
+  "BOTH",
+  "GENERAL",
+] as const;
+export const FAMILY_CONVERSATION_LENGTHS = [
+  "SHORT",
+  "MEDIUM",
+  "LONG",
+] as const;
+export const FAMILY_TARGET_LEVELS = [
+  "BASIC",
+  "NATURAL",
+  "ADVANCED",
+] as const;
+export const FAMILY_SPEAKER_ROLES = [
+  "FATHER",
+  "CHILD",
+  "MOTHER",
+  "GRANDPARENT",
+  "GENERAL",
+] as const;
+export const FAMILY_CHUNK_STATUSES = [
+  "SUGGESTED",
+  "APPROVED",
+  "ARCHIVED",
+] as const;
 export const EXERCISE_TYPES = [
   "MULTIPLE_CHOICE",
   "FILL_IN_BLANK",
@@ -84,6 +113,45 @@ export const AI_TUTOR_PURPOSE_LABELS = {
   CHUNK_EXPLANATION: "Chunk Explanation",
 } as const;
 
+export const FAMILY_CHILD_FOCUS_LABELS = {
+  KIWI: "Kiwi",
+  VIVI: "Vivi",
+  BOTH: "Both",
+} as const;
+
+export const FAMILY_CHUNK_CHILD_FOCUS_LABELS = {
+  KIWI: "Kiwi",
+  VIVI: "Vivi",
+  BOTH: "Both",
+  GENERAL: "General",
+} as const;
+
+export const FAMILY_CONVERSATION_LENGTH_LABELS = {
+  SHORT: "Short",
+  MEDIUM: "Medium",
+  LONG: "Long",
+} as const;
+
+export const FAMILY_TARGET_LEVEL_LABELS = {
+  BASIC: "Basic",
+  NATURAL: "Natural",
+  ADVANCED: "Advanced",
+} as const;
+
+export const FAMILY_SPEAKER_ROLE_LABELS = {
+  FATHER: "Father",
+  CHILD: "Child",
+  MOTHER: "Mother",
+  GRANDPARENT: "Grandparent",
+  GENERAL: "General",
+} as const;
+
+export const FAMILY_CHUNK_STATUS_LABELS = {
+  SUGGESTED: "Suggested",
+  APPROVED: "Approved",
+  ARCHIVED: "Archived",
+} as const;
+
 export const ROLE_LABELS = {
   USER: "Learner",
   ADMIN: "Admin",
@@ -95,7 +163,7 @@ export const CONFIDENCE_LABELS = {
   HARD: "Hard",
 } as const;
 
-export const SIDEBAR_ITEMS = [
+export const IELTS_SIDEBAR_ITEMS = [
   { href: "/dashboard", label: "Dashboard", adminOnly: false },
   { href: "/learn", label: "Learn Today", adminOnly: false },
   { href: "/questions", label: "Question Bank", adminOnly: false },
@@ -106,7 +174,43 @@ export const SIDEBAR_ITEMS = [
   { href: "/practice", label: "Practice", adminOnly: false },
   { href: "/review", label: "Review", adminOnly: false },
   { href: "/progress", label: "Progress", adminOnly: false },
+] as const;
+
+export const FAMILY_SIDEBAR_ITEMS = [
+  { href: "/family", label: "Family Home", adminOnly: false },
+  { href: "/family/profile", label: "Family Profile", adminOnly: false },
+  { href: "/family/scenarios", label: "Scenarios", adminOnly: false },
+  { href: "/family/conversations", label: "Conversations", adminOnly: false },
+  { href: "/family/chunks", label: "Family Chunks", adminOnly: false },
+  { href: "/family/practice", label: "Family Practice", adminOnly: false },
+] as const;
+
+export const ADMIN_SIDEBAR_ITEMS = [
   { href: "/admin", label: "Admin", adminOnly: true },
+] as const;
+
+export const SIDEBAR_ITEMS = [
+  ...IELTS_SIDEBAR_ITEMS,
+  ...FAMILY_SIDEBAR_ITEMS,
+  ...ADMIN_SIDEBAR_ITEMS,
+] as const;
+
+export const SIDEBAR_GROUPS = [
+  {
+    key: "ielts",
+    label: "IELTS Workspace",
+    items: IELTS_SIDEBAR_ITEMS,
+  },
+  {
+    key: "family",
+    label: "Family English",
+    items: FAMILY_SIDEBAR_ITEMS,
+  },
+  {
+    key: "admin",
+    label: "Admin",
+    items: ADMIN_SIDEBAR_ITEMS,
+  },
 ] as const;
 
 export const CSV_HEADERS = [

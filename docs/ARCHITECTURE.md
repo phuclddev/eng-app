@@ -18,6 +18,24 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
 - Authorization enforced on the server through middleware and session guards
 - Sensitive tokens and secrets are redacted from logs
 
+## Family English module boundary
+
+- `Family English` is a separate workspace branch under `/family`.
+- It does not reuse IELTS question-bank tables, IELTS practice sessions, or IELTS review schedules.
+- Phase 1 + Phase 2 introduce:
+  - isolated family navigation
+  - separate `src/server/family` services
+  - separate family AI prompt builders under `src/server/ai/prompts`
+  - private `FamilyProfile` persistence
+- Phase 3 + Phase 4 add:
+  - `FamilyScenario` data and CRUD
+  - `FamilyConversation` data and AI generation flow
+- Phase 5 adds:
+  - `FamilyChunk` data and lifecycle
+  - AI extraction from saved family conversations
+  - separate review queue UI at `/family/chunks`
+- Family practice and roleplay remain separate routes so later phases can add features without touching IELTS logic.
+
 ## AI Tutor layer
 
 - The external chatflow token is used only from server code.
@@ -95,6 +113,66 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
   - the latest generated study-coach answer
   - parsed sections when available
   - timestamps for cache reuse
+
+## Family English data
+
+- `FamilyProfile` stores a private markdown profile for one user:
+  - `title`
+  - `profileMarkdown`
+  - `isActive`
+- The initial bootstrap profile for `dinhphuc.luu@garena.vn` is seeded from the Phuc family source profile and can also be lazily created on first family-route access.
+- Other approved users receive a generic family-profile template instead of the Phuc-specific household profile.
+- `FamilyScenario` stores private user-owned practice situations:
+  - `title`
+  - `category`
+  - `childFocus`
+  - `description`
+  - `difficulty`
+  - `isActive`
+- `FamilyConversation` stores private AI-generated markdown conversations linked back to one `FamilyScenario` and one user.
+- `FamilyChunk` stores private reusable daily-life expressions linked to one user and optionally to one `FamilyConversation`.
+- `FamilyChunk` lifecycle is:
+  - `SUGGESTED`
+  - `APPROVED`
+  - `ARCHIVED`
+- `FamilyChunk` uses normalized per-user uniqueness so repeated extraction does not create duplicate rows.
+- Default family scenarios are lazily upserted only for the bootstrap owner so Phuc-specific scenarios are not automatically pushed into unrelated users' accounts.
+
+## Family conversation generation flow
+
+- `/family/conversations` loads the current user's active scenarios plus saved family conversations.
+- The generate form posts to `/api/family/conversations/generate`.
+- The route:
+  - requires authenticated and approved access
+  - validates input with zod
+  - loads the active `FamilyProfile`
+  - loads an owned active `FamilyScenario`
+  - builds a compact family-specific prompt
+  - calls the shared server-side AI chatflow client
+  - stores the markdown result in `FamilyConversation`
+- The output is rendered with the shared safe AI Markdown renderer, so Markdown formatting is preserved without enabling raw HTML.
+
+## Family chunk extraction flow
+
+- `/family/conversations` now exposes `Extract Chunks` on the selected conversation detail panel.
+- The extract request posts to `/api/family/chunks/extract`.
+- The route:
+  - requires authenticated and approved access
+  - validates `conversationId` with zod
+  - loads the owned `FamilyConversation`
+  - loads compact `FamilyProfile` context when available
+  - builds a family-only chunk extraction prompt
+  - calls the shared server-side AI client
+  - requires structured JSON before any write
+  - filters duplicates by normalized chunk text
+  - stores new rows as `SUGGESTED`
+- `/family/chunks` renders a separate management surface for:
+  - manual chunk creation
+  - editing
+  - approve/archive/restore transitions
+  - bulk approve/archive actions
+  - search and filter by status, child focus, speaker role, and scenario category
+- None of these family chunk records are reused by IELTS chunk selection, IELTS review scheduling, or IELTS dashboard metrics.
 
 ## AI feature surfaces
 

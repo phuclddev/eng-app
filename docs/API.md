@@ -55,6 +55,77 @@
 - Learner route: `GET /questions`
 - Admin route: `GET /admin/questions`
 
+## Family English
+
+- Learner route: `GET /family`
+- Learner route: `GET /family/profile`
+- Learner route: `GET /family/scenarios`
+- Learner route: `GET /family/conversations`
+- Learner route: `GET /family/chunks`
+- Learner route: `GET /family/practice`
+- Family AI API: `POST /api/family/conversations/generate`
+- Family AI API: `POST /api/family/chunks/extract`
+
+### Phase 3 + Phase 4 note
+
+- The Family English module is isolated from IELTS routes and data models.
+- There is still no public REST API for family profile editing in this phase.
+- `/family/profile` currently saves through a server action tied to the signed-in user's own profile.
+- Family scenario CRUD currently uses server actions tied to the signed-in user's own data.
+- Family chunk review now uses server actions tied to the signed-in user's own data.
+- Family practice and roleplay APIs are intentionally deferred to later phases.
+
+### `POST /api/family/conversations/generate`
+
+- Requires an authenticated and `APPROVED` user.
+- Accepts JSON:
+  - `scenarioId`
+  - `childFocus`
+  - `conversationLength`
+  - `targetLevel`
+  - `vietnameseSupport` optional
+- Loads on the server:
+  - the user's active `FamilyProfile`
+  - the user's own active `FamilyScenario`
+- Builds a compact family-specific AI prompt and saves the generated markdown as `FamilyConversation`.
+- Returns:
+  - `conversation`
+- The AI response is expected to contain Markdown sections:
+  - `# Situation`
+  - `# Conversation`
+  - `# Useful Chunks`
+  - `# Notes for Phuc`
+  - `# Mini Practice`
+- The route logs request metadata only:
+  - `userId`
+  - `scenarioId`
+  - generation options
+- It does not log the AI token or full family profile content.
+
+### `POST /api/family/chunks/extract`
+
+- Requires an authenticated and `APPROVED` user.
+- Accepts JSON:
+  - `conversationId`
+- Loads on the server:
+  - the user's own `FamilyConversation`
+  - the related `FamilyScenario`
+  - the user's active `FamilyProfile` when available
+- Builds a compact chunk-extraction prompt and calls the shared server-side AI client.
+- Requires structured JSON output from AI before any database write happens.
+- Skips duplicate chunks for the same user by normalized chunk text.
+- Saves only new chunks as `SUGGESTED`.
+- Returns:
+  - `summary.created`
+  - `summary.skippedDuplicates`
+  - `summary.errors`
+- The route logs request metadata only:
+  - `userId`
+  - `conversationId`
+  - created count
+  - skipped duplicate count
+- It does not log the AI token, full family profile, or full extracted chunk payload.
+
 ## AI Tutor
 
 - Learner route: `GET /ai-tutor`

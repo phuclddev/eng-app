@@ -60,6 +60,22 @@ describe("middleware RBAC", () => {
     expect(studyCoachResponse.headers.get("location")).toBe(
       "http://localhost:3000/signin?callbackUrl=%2Fstudy-coach&auto=true",
     );
+
+    const familyHomeResponse = await middleware(
+      new NextRequest("http://localhost:3000/family"),
+    );
+
+    expect(familyHomeResponse.headers.get("location")).toBe(
+      "http://localhost:3000/signin?callbackUrl=%2Ffamily&auto=true",
+    );
+
+    const familyProfileResponse = await middleware(
+      new NextRequest("http://localhost:3000/family/profile"),
+    );
+
+    expect(familyProfileResponse.headers.get("location")).toBe(
+      "http://localhost:3000/signin?callbackUrl=%2Ffamily%2Fprofile&auto=true",
+    );
   });
 
   it("routes pending and blocked users to the approval gate", async () => {
@@ -111,6 +127,20 @@ describe("middleware RBAC", () => {
 
     const response = await middleware(
       new NextRequest("http://localhost:3000/admin"),
+    );
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+  });
+
+  it("allows approved users through family routes", async () => {
+    getToken.mockResolvedValue({
+      role: "USER",
+      status: "APPROVED",
+    });
+
+    const response = await middleware(
+      new NextRequest("http://localhost:3000/family/profile"),
     );
 
     expect(response.headers.get("location")).toBeNull();

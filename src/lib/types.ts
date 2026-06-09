@@ -4,6 +4,12 @@ import type {
   AI_SIMULATOR_PARTS,
   QUESTION_CHUNK_USAGE_ROLES,
   AI_TUTOR_PURPOSES,
+  FAMILY_CHILD_FOCUS,
+  FAMILY_CHUNK_CHILD_FOCUS,
+  FAMILY_CHUNK_STATUSES,
+  FAMILY_CONVERSATION_LENGTHS,
+  FAMILY_SPEAKER_ROLES,
+  FAMILY_TARGET_LEVELS,
   CONFIDENCE_LEVELS,
   EXERCISE_TYPES,
   PRACTICE_MODES,
@@ -19,6 +25,12 @@ export type IeltsTaskType = (typeof IELTS_TASK_TYPES)[number];
 export type AiSimulatorPart = (typeof AI_SIMULATOR_PARTS)[number];
 export type QuestionChunkUsageRole = (typeof QUESTION_CHUNK_USAGE_ROLES)[number];
 export type AiTutorPurpose = (typeof AI_TUTOR_PURPOSES)[number];
+export type FamilyChildFocus = (typeof FAMILY_CHILD_FOCUS)[number];
+export type FamilyChunkChildFocus = (typeof FAMILY_CHUNK_CHILD_FOCUS)[number];
+export type FamilyChunkStatus = (typeof FAMILY_CHUNK_STATUSES)[number];
+export type FamilyConversationLength = (typeof FAMILY_CONVERSATION_LENGTHS)[number];
+export type FamilySpeakerRole = (typeof FAMILY_SPEAKER_ROLES)[number];
+export type FamilyTargetLevel = (typeof FAMILY_TARGET_LEVELS)[number];
 export type ExerciseType = (typeof EXERCISE_TYPES)[number];
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
 export type PracticeLearningStage =
@@ -284,4 +296,83 @@ export type AiSampleAnswerResponse = {
   selectedChunkCount: number;
   targetBand: number;
   usedChunks: AiSampleAnswerUsedChunk[];
+};
+
+export type FamilyProfileRecord = {
+  id: string;
+  userId: string;
+  title: string;
+  profileMarkdown: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FamilyScenarioRecord = {
+  id: string;
+  userId: string;
+  title: string;
+  category: string;
+  childFocus: FamilyChildFocus;
+  description: string;
+  difficulty: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FamilyConversationRecord = {
+  id: string;
+  userId: string;
+  scenarioId: string;
+  childFocus: FamilyChildFocus;
+  title: string;
+  conversationMarkdown: string;
+  aiConversationId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  scenario: {
+    id: string;
+    title: string;
+    category: string;
+  };
+};
+
+export type FamilyConversationGenerationResponse = {
+  conversation: FamilyConversationRecord;
+};
+
+export type FamilyChunkRecord = {
+  id: string;
+  userId: string;
+  text: string;
+  meaningVi: string;
+  usageContext: string;
+  speakerRole: FamilySpeakerRole;
+  childFocus: FamilyChunkChildFocus;
+  scenarioCategory: string;
+  difficulty: number;
+  frequencyScore: number;
+  personalizationScore: number;
+  exampleSentence: string | null;
+  notes: string | null;
+  sourceConversationId: string | null;
+  status: FamilyChunkStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FamilyChunkSnapshot = {
+  totalApprovedChunks: number;
+  totalSuggestedChunks: number;
+};
+
+export type FamilyChunkExtractionSummary = {
+  created: number;
+  skippedDuplicates: number;
+  errors: string[];
+};
+
+export type FamilyChunkExtractionResponse = {
+  summary: FamilyChunkExtractionSummary;
 };

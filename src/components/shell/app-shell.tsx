@@ -4,15 +4,20 @@ import {
   BookOutlined,
   BulbOutlined,
   CommentOutlined,
-  RobotOutlined,
-  MenuOutlined,
   DashboardOutlined,
   FileTextOutlined,
+  HomeOutlined,
+  IdcardOutlined,
+  MenuOutlined,
   LineChartOutlined,
   MessageOutlined,
+  ReadOutlined,
+  RobotOutlined,
   SafetyOutlined,
   ScheduleOutlined,
+  TagsOutlined,
   ToolOutlined,
+  UnorderedListOutlined,
 } from "@ant-design/icons";
 import {
   Avatar,
@@ -30,7 +35,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
-import { ROLE_LABELS, SIDEBAR_ITEMS, STATUS_LABELS } from "@/lib/constants";
+import {
+  ROLE_LABELS,
+  SIDEBAR_GROUPS,
+  SIDEBAR_ITEMS,
+  STATUS_LABELS,
+} from "@/lib/constants";
 import type { SessionUser } from "@/lib/types";
 import { SignOutButton } from "@/components/ui/auth-buttons";
 
@@ -45,6 +55,12 @@ const iconMap = {
   "/practice": <ToolOutlined />,
   "/review": <ScheduleOutlined />,
   "/progress": <LineChartOutlined />,
+  "/family": <HomeOutlined />,
+  "/family/profile": <IdcardOutlined />,
+  "/family/scenarios": <UnorderedListOutlined />,
+  "/family/conversations": <CommentOutlined />,
+  "/family/chunks": <TagsOutlined />,
+  "/family/practice": <ReadOutlined />,
   "/admin": <SafetyOutlined />,
 } as const;
 
@@ -67,17 +83,32 @@ export function AppShell({
   const selectedLabel =
     SIDEBAR_ITEMS.find((item) => item.href === selectedItem)?.label ?? "Workspace";
 
-  const items = SIDEBAR_ITEMS.filter(
-    (item) => !item.adminOnly || user.role === "ADMIN",
-  ).map((item) => ({
-    key: item.href,
-    icon: iconMap[item.href],
-    label: (
-      <Link href={item.href} onClick={() => setDrawerOpen(false)}>
-        {item.label}
-      </Link>
-    ),
-  }));
+  const items = SIDEBAR_GROUPS.flatMap((group) => {
+    const visibleItems = group.items
+      .filter((item) => !item.adminOnly || user.role === "ADMIN")
+      .map((item) => ({
+        key: item.href,
+        icon: iconMap[item.href],
+        label: (
+          <Link href={item.href} onClick={() => setDrawerOpen(false)}>
+            {item.label}
+          </Link>
+        ),
+      }));
+
+    if (visibleItems.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        key: group.key,
+        type: "group" as const,
+        label: group.label,
+        children: visibleItems,
+      },
+    ];
+  });
 
   const userSummary = (
     <Space size="large">

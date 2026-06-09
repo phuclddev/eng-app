@@ -83,6 +83,33 @@ enum AiSimulatorMessageRole {
   FEEDBACK
 }
 
+enum FamilyChildFocus {
+  KIWI
+  VIVI
+  BOTH
+}
+
+enum FamilyChunkChildFocus {
+  KIWI
+  VIVI
+  BOTH
+  GENERAL
+}
+
+enum FamilySpeakerRole {
+  FATHER
+  CHILD
+  MOTHER
+  GRANDPARENT
+  GENERAL
+}
+
+enum FamilyChunkStatus {
+  SUGGESTED
+  APPROVED
+  ARCHIVED
+}
+
 model User {
   id               String            @id @default(cuid())
   name             String?
@@ -103,11 +130,94 @@ model User {
   aiConversations  AiConversation[]
   aiSimulatorSessions AiSimulatorSession[]
   aiStudyCoachSnapshots AiStudyCoachSnapshot[]
+  familyChunks      FamilyChunk[]
+  familyConversations FamilyConversation[]
+  familyProfile    FamilyProfile?
+  familyScenarios  FamilyScenario[]
   practiceAnswers  PracticeAnswer[]
   practiceSessions PracticeSession[]
   reviewSchedules  ReviewSchedule[]
 
   @@index([role, status])
+}
+
+model FamilyProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  title           String   @db.VarChar(191)
+  profileMarkdown String   @db.LongText
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([isActive])
+}
+
+model FamilyScenario {
+  id            String           @id @default(cuid())
+  userId        String
+  title         String           @db.VarChar(191)
+  category      String           @db.VarChar(120)
+  childFocus    FamilyChildFocus @default(BOTH)
+  description   String           @db.Text
+  difficulty    Int              @default(1)
+  isActive      Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations FamilyConversation[]
+
+  @@unique([userId, title])
+  @@index([userId, isActive])
+  @@index([userId, category, childFocus])
+}
+
+model FamilyConversation {
+  id                   String           @id @default(cuid())
+  userId               String
+  scenarioId           String
+  childFocus           FamilyChildFocus @default(BOTH)
+  title                String           @db.VarChar(191)
+  conversationMarkdown String           @db.LongText
+  aiConversationId     String?          @db.VarChar(191)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scenario             FamilyScenario   @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  chunks               FamilyChunk[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@index([scenarioId, createdAt(sort: Desc)])
+  @@index([userId, childFocus])
+}
+
+model FamilyChunk {
+  id                   String               @id @default(cuid())
+  userId               String
+  text                 String               @db.VarChar(191)
+  normalizedText       String               @db.VarChar(191)
+  meaningVi            String               @db.VarChar(255)
+  usageContext         String               @db.Text
+  speakerRole          FamilySpeakerRole    @default(GENERAL)
+  childFocus           FamilyChunkChildFocus @default(GENERAL)
+  scenarioCategory     String               @db.VarChar(120)
+  difficulty           Int                  @default(1)
+  frequencyScore       Int                  @default(1)
+  personalizationScore Int                  @default(1)
+  exampleSentence      String?              @db.Text
+  notes                String?              @db.Text
+  sourceConversationId String?
+  status               FamilyChunkStatus    @default(SUGGESTED)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceConversation   FamilyConversation?  @relation(fields: [sourceConversationId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, normalizedText])
+  @@index([userId, status, updatedAt(sort: Desc)])
+  @@index([userId, childFocus, speakerRole])
+  @@index([sourceConversationId])
 }
 
 model Topic {

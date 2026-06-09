@@ -35,3 +35,28 @@
 - Added Speaking Simulator with ownership-safe persisted sessions, local message history, upstream thread reuse, and structured final feedback
 - Added AI Study Coach with compact learner-profile generation, cached snapshots, and dashboard-linked learner guidance
 - Added advanced AI prompt-builder coverage, sample-answer selection tests, route validation tests, and updated architecture/security/testing notes
+
+## 2026-06-08
+
+- Started the isolated `Family English Companion` module without mixing it into IELTS question-bank, practice, or review logic
+- Added a separate `Family English` navigation group and scaffolded the routes:
+  - `/family`
+  - `/family/profile`
+  - `/family/scenarios`
+  - `/family/conversations`
+  - `/family/chunks`
+  - `/family/practice`
+- Added separate family services under `src/server/family` and separate family AI prompt builders under `src/server/ai/prompts`
+- Added `FamilyProfile` persistence with bootstrap-owner seeding from the Phuc family source profile plus a generic fallback template for other users
+- Added a private Family Profile editor page, family middleware coverage, and helper tests for seeded profile behavior and family prompt boundaries
+- Added `FamilyScenario` and `FamilyConversation` models with separate family-only persistence and no coupling to IELTS tables
+- Seeded default Phuc-family scenarios for the bootstrap owner and added lazy default-scenario upsert on family scenario access
+- Replaced `/family/scenarios` placeholder with searchable CRUD UI for creating, editing, archiving, and reactivating family scenarios
+- Added `POST /api/family/conversations/generate`, family conversation prompt building, safe AI logging, and markdown conversation persistence
+- Replaced `/family/conversations` placeholder with generation, filter, copy, delete, and detail rendering UI using the shared safe AI Markdown component
+- Added ownership and validation coverage for family scenarios and family conversation generation
+- Added `FamilyChunk` with separate family-only persistence, per-user normalized duplicate prevention, and lifecycle states `SUGGESTED`, `APPROVED`, and `ARCHIVED`
+- Added `POST /api/family/chunks/extract` to turn saved family conversations into reviewable private daily-life chunks through the existing server-side AI client
+- Replaced `/family/chunks` placeholder with a real review queue supporting manual add, edit, search, status tabs, child/speaker/category filters, and bulk approve/archive actions
+- Added `Extract Chunks` to family conversation detail, with extraction summary feedback and a deep link into `/family/chunks?status=SUGGESTED`
+- Added family chunk service and route coverage for validation, ownership protection, invalid AI output fallback, duplicate skipping, and approve/archive transitions

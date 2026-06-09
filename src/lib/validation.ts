@@ -5,6 +5,12 @@ import {
   AI_SIMULATOR_PARTS,
   CONFIDENCE_LEVELS,
   EXERCISE_TYPES,
+  FAMILY_CHILD_FOCUS,
+  FAMILY_CHUNK_CHILD_FOCUS,
+  FAMILY_CHUNK_STATUSES,
+  FAMILY_CONVERSATION_LENGTHS,
+  FAMILY_SPEAKER_ROLES,
+  FAMILY_TARGET_LEVELS,
   IELTS_SKILLS,
   IELTS_TASK_TYPES,
   PRACTICE_MODES,
@@ -49,6 +55,91 @@ export const userModerationSchema = z.object({
   status: z.enum(USER_STATUSES),
   role: z.enum(USER_ROLES).optional(),
   notes: z.string().trim().optional(),
+});
+
+export const familyProfileFormSchema = z.object({
+  title: z.string().trim().min(2, "Profile title is required.").max(191),
+  profileMarkdown: z
+    .string()
+    .trim()
+    .min(40, "Family profile is too short for AI personalization."),
+});
+
+export const familyScenarioFormSchema = z.object({
+  id: z.string().trim().optional(),
+  title: z.string().trim().min(2, "Scenario title is required.").max(191),
+  category: z.string().trim().min(2, "Scenario category is required.").max(120),
+  childFocus: z.enum(FAMILY_CHILD_FOCUS),
+  description: z
+    .string()
+    .trim()
+    .min(12, "Scenario description is too short.")
+    .max(4000, "Scenario description is too long."),
+  difficulty: z.coerce.number().int().min(1).max(5),
+  isActive: z.boolean().optional().default(true),
+});
+
+export const familyConversationGenerationSchema = z.object({
+  scenarioId: z.string().trim().min(1, "Scenario is required."),
+  childFocus: z.enum(FAMILY_CHILD_FOCUS),
+  conversationLength: z.enum(FAMILY_CONVERSATION_LENGTHS),
+  targetLevel: z.enum(FAMILY_TARGET_LEVELS),
+  vietnameseSupport: z.boolean().optional().default(false),
+});
+
+export const familyChunkFormSchema = z
+  .object({
+    id: z.string().trim().optional(),
+    text: z.string().trim().min(2, "Chunk text is required.").max(191),
+    meaningVi: z
+      .string()
+      .trim()
+      .min(2, "Vietnamese meaning is required.")
+      .max(255),
+    usageContext: z
+      .string()
+      .trim()
+      .min(5, "Usage context is required.")
+      .max(4000, "Usage context is too long."),
+    speakerRole: z.enum(FAMILY_SPEAKER_ROLES),
+    childFocus: z.enum(FAMILY_CHUNK_CHILD_FOCUS),
+    scenarioCategory: z
+      .string()
+      .trim()
+      .min(2, "Scenario category is required.")
+      .max(120),
+    difficulty: z.coerce.number().int().min(1).max(5),
+    frequencyScore: z.coerce.number().int().min(1).max(5),
+    personalizationScore: z.coerce.number().int().min(1).max(5),
+    exampleSentence: z.string().trim().optional().nullable(),
+    notes: z.string().trim().optional().nullable(),
+    sourceConversationId: z.string().trim().optional().nullable(),
+    status: z.enum(FAMILY_CHUNK_STATUSES).optional().default("SUGGESTED"),
+  })
+  .transform((input) => ({
+    ...input,
+    exampleSentence: input.exampleSentence ? input.exampleSentence : null,
+    notes: input.notes ? input.notes : null,
+    sourceConversationId: input.sourceConversationId
+      ? input.sourceConversationId
+      : null,
+  }));
+
+export const familyChunkExtractionSchema = z.object({
+  conversationId: z.string().trim().min(1, "Conversation is required."),
+});
+
+export const familyChunkStatusUpdateSchema = z.object({
+  chunkId: z.string().trim().min(1, "Chunk is required."),
+  status: z.enum(FAMILY_CHUNK_STATUSES),
+});
+
+export const familyChunkBulkStatusUpdateSchema = z.object({
+  chunkIds: z
+    .array(z.string().trim().min(1, "Chunk is required."))
+    .min(1, "Select at least one chunk.")
+    .max(100, "Too many chunks selected at once."),
+  status: z.enum(FAMILY_CHUNK_STATUSES),
 });
 
 export const questionChunkMappingSchema = z.object({
@@ -231,6 +322,12 @@ export type TopicFormInput = z.input<typeof topicFormSchema>;
 export type TopicFormValues = z.infer<typeof topicFormSchema>;
 export type ChunkFormInput = z.input<typeof chunkFormSchema>;
 export type ChunkFormValues = z.infer<typeof chunkFormSchema>;
+export type FamilyProfileFormInput = z.input<typeof familyProfileFormSchema>;
+export type FamilyProfileFormValues = z.infer<typeof familyProfileFormSchema>;
+export type FamilyScenarioFormInput = z.input<typeof familyScenarioFormSchema>;
+export type FamilyScenarioFormValues = z.infer<typeof familyScenarioFormSchema>;
+export type FamilyChunkFormInput = z.input<typeof familyChunkFormSchema>;
+export type FamilyChunkFormValues = z.infer<typeof familyChunkFormSchema>;
 export type QuestionChunkMappingsFormInput = z.input<
   typeof questionChunkMappingsFormSchema
 >;
@@ -249,3 +346,15 @@ export type AiSpeakingSimulatorMessagePayload = z.infer<
 >;
 export type AiStudyCoachPayload = z.infer<typeof aiStudyCoachSchema>;
 export type AiSampleAnswerPayload = z.infer<typeof aiSampleAnswerSchema>;
+export type FamilyConversationGenerationPayload = z.infer<
+  typeof familyConversationGenerationSchema
+>;
+export type FamilyChunkExtractionPayload = z.infer<
+  typeof familyChunkExtractionSchema
+>;
+export type FamilyChunkStatusUpdatePayload = z.infer<
+  typeof familyChunkStatusUpdateSchema
+>;
+export type FamilyChunkBulkStatusUpdatePayload = z.infer<
+  typeof familyChunkBulkStatusUpdateSchema
+>;

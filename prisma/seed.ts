@@ -3,9 +3,12 @@ import "dotenv/config";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@prisma/client";
 import {
+  buildBootstrapAdminUpsertArgs,
   BOOTSTRAP_ADMIN_NAME,
-  ensureBootstrapAdminUser,
 } from "../src/server/bootstrap-admin";
+import { buildFamilyProfileUpsertArgs } from "../src/server/family/family-profile-helpers";
+import { getDefaultFamilyScenariosForUser } from "../src/server/family/default-family-scenarios";
+import { buildFamilyScenarioSeedUpsertArgs } from "../src/server/family/family-scenario-helpers";
 import { slugify } from "../src/lib/utils";
 
 const adapter = new PrismaMariaDb(
@@ -16,9 +19,25 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   const topicNames = ["Task 1", "Task 2", "Education", "Technology"];
 
-  await ensureBootstrapAdminUser(prisma.user, {
+  const bootstrapAdmin = await prisma.user.upsert(buildBootstrapAdminUpsertArgs({
     name: BOOTSTRAP_ADMIN_NAME,
-  });
+  }));
+
+  await prisma.familyProfile.upsert(
+    buildFamilyProfileUpsertArgs({
+      userId: bootstrapAdmin.id,
+      email: bootstrapAdmin.email,
+    }),
+  );
+
+  for (const scenario of getDefaultFamilyScenariosForUser(bootstrapAdmin.email)) {
+    await prisma.familyScenario.upsert(
+      buildFamilyScenarioSeedUpsertArgs({
+        userId: bootstrapAdmin.id,
+        scenario,
+      }),
+    );
+  }
 
   for (const topicName of topicNames) {
     await prisma.topic.upsert({
