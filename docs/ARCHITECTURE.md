@@ -34,7 +34,24 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
   - `FamilyChunk` data and lifecycle
   - AI extraction from saved family conversations
   - separate review queue UI at `/family/chunks`
-- Family practice and roleplay remain separate routes so later phases can add features without touching IELTS logic.
+- Phase 6 adds:
+  - `FamilyPracticeSession`, `FamilyPracticeAnswer`, and `FamilyReviewSchedule` data
+  - separate family practice deck generation and answer evaluation
+  - separate family spaced repetition scheduler
+  - `/family/practice` mobile-first runner
+  - family dashboard card on `/family`
+  - optional AI feedback for `CONTINUE_CONVERSATION`
+- Phase 7 adds:
+  - `FamilyRoleplaySession` and `FamilyRoleplayMessage` data
+  - separate AI roleplay flow with stored upstream `conversation_id`
+  - `/family/roleplay` mobile-first chat UI
+  - Markdown coach feedback at session end
+- Phase 8 adds:
+  - `FamilyFavorite` and `FamilyDailyPlanSnapshot` data
+  - deterministic family recommendation engine
+  - cached AI daily plan and on-demand weekly AI insights
+  - `/family/today`, `/family/insights`, `/family/favorites` pages
+  - child-focus selector (`KIWI`, `VIVI`, `BOTH`) on the daily coach
 
 ## AI Tutor layer
 
@@ -58,6 +75,40 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
 - Admin CSV imports are validated first and imported transactionally.
 - Duplicate imports upsert existing chunks instead of creating duplicates.
 - Chunk removal is implemented as soft delete so practice answers and review schedules remain preserved.
+
+## Translation Recall Lab
+
+- `TranslationScript` stores admin-imported scripts with `title`, `topic`, `bandLevel`, `fingerprint`, and a creator reference.
+- `TranslationSentence` stores ordered `(englishText, vietnameseText)` pairs per script.
+- `TranslationChunkMapping` links a sentence to a saved chunk and stores AI-extracted metadata for that mapping.
+- `TranslationSentenceReview` stores per-user recall reviews with `easyCount`, `mediumCount`, `hardCount`, and `reviewCount` — independent from IELTS `ReviewSchedule`.
+- The CSV import groups by `title + topic`, uses a SHA-1 fingerprint of that pair for idempotency, and rewrites sentences on re-upload. XLSX uploads are rejected; admins should export to CSV first.
+- The "AI Extract Chunk" flow sends the script title/topic/band + the original sentence + the highlighted phrase to a separate prompt builder (`buildTranslationChunkExtractPrompt`) and parses strict JSON.
+- "Save to Chunk Library" upserts the existing IELTS `Chunk` table by `(chunk, meaningVi)` so the Translation Recall flow feeds straight into the existing Chunk Library, Practice, and Review pipelines.
+- Translation reviews never write to IELTS `ReviewSchedule`. Both review systems coexist independently.
+- The learner UI ships with two modes:
+  - Reveal mode hides English with a CSS blur until hover (desktop) or tap (mobile) and surfaces a selection toolbar for AI extraction or manual save.
+  - Speaking mode keeps English hidden until the user taps Reveal, then offers Easy / Medium / Hard self-rating buttons that hit the review API.
+
+## Translation Recall failure model
+
+- The reveal flow does not depend on AI. Hover, tap, manual chunk save, and review tracking all work without `AI_CHATFLOW_TOKEN`.
+- AI extraction failures return `503 AI_TUTOR_UNAVAILABLE`; the user can still manually save the highlighted phrase to the chunk library.
+- Translation imports validate the whole CSV first and only write to the DB once the rows pass schema validation.
+
+## Question Bank → Translation Recall pipeline
+
+- `TranslationScript` now carries `sourceType` (`MANUAL` or `SPEAKING_QUESTION`), an optional `sourceQuestionId` foreign key to `IeltsQuestion`, `generatedByAi`, a `version` counter, and a `usedChunkIds` JSON array.
+- The "Create Translation Recall Script" button on `/questions` calls `POST /api/translation-recall/from-question`, which:
+  - reuses the existing `selectSampleAnswerChunks` helper to bound the prompt context to recommended → topic → general chunks
+  - hard-caps the shortlist at `30` chunks so the AI never receives the full library
+  - asks the AI for one structured JSON response containing the English sample answer (with Markdown bold for chunks), Vietnamese translation, aligned sentence pairs, and a list of `usedChunks`
+  - parses the JSON defensively: malformed JSON falls back to plain-text whole-script storage, and missing aligned sentences fall back to sentence-splitting heuristics
+  - matches `usedChunks` back to real `Chunk` rows for highlight rendering
+  - prevents duplicates by `(sourceQuestionId, bandLevel)` and returns the existing script unless `regenerate` is `true`, in which case it increments `version`
+  - logs metadata only — no AI tokens, no full prompts, no full answers
+- The Translation Recall reader joins `script.usedChunkIds` back to the IELTS Chunk Library at render time and highlights matching English text inside revealed sentences. Family English chunks and Family Practice flows are not involved.
+- The Question Bank list shows a `n translation script(s)` tag and the question detail panel has a card with a one-tap link to open the latest script and a button to generate another version.
 
 ## IELTS question bank
 
@@ -173,6 +224,97 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
   - bulk approve/archive actions
   - search and filter by status, child focus, speaker role, and scenario category
 - None of these family chunk records are reused by IELTS chunk selection, IELTS review scheduling, or IELTS dashboard metrics.
+
+## Family practice architecture
+
+- `FamilyPracticeSession` stores one family practice attempt with:
+  - `mode` (`DAILY`, `REVIEW`, `MIXED`)
+  - aggregate `totalQuestions`, `correctAnswers`, `score`, `averageResponseMs`
+  - `startedAt`, `completedAt`
+- `FamilyPracticeAnswer` stores one answer:
+  - `exerciseType` (`VI_TO_CHUNK`, `FILL_IN_DIALOG`, `NATURAL_RESPONSE`, `CONTINUE_CONVERSATION`, `FAMILY_CHUNK_RECALL`)
+  - `prompt`, `expectedAnswer`, `userAnswer`
+  - `isCorrect`, `responseTimeMs`, `confidenceLevel`
+  - optional `feedback`
+- `FamilyReviewSchedule` mirrors the IELTS scheduler shape but stays in its own table:
+  - per `(userId, familyChunkId)` uniqueness
+  - intervals snap to `1`, `3`, `7`, `14`, `30` days
+  - mastery and ease factor evolve from confidence and response time
+- Family practice deck generation:
+  - reads only `APPROVED` `FamilyChunk` rows
+  - joins per-chunk `FamilyReviewSchedule` snapshots
+  - scores each chunk by: due review, personalization, frequency, weak mastery boost, new-chunk boost
+  - sorts deterministically (priority then stable hash on chunk id and mode)
+  - infers an exercise type per chunk from mastery progression
+- Family practice answer evaluation:
+  - exact normalized match for recall and recognition exercises
+  - production exercises (`CONTINUE_CONVERSATION`) require the chunk to appear inside the answer plus a minimum word count
+- Optional AI feedback for `CONTINUE_CONVERSATION`:
+  - uses a separate family practice feedback prompt builder
+  - never blocks session submission
+  - returns Markdown only
+
+## Family practice failure model
+
+- Practice submission, session storage, and review scheduling work even when the AI service is unavailable.
+- AI feedback failures return a friendly error to the runner without stopping the deck flow.
+- Family practice never updates IELTS `PracticeSession`, IELTS `PracticeAnswer`, or IELTS `ReviewSchedule`.
+
+## Family roleplay architecture
+
+- `FamilyRoleplaySession` stores one in-character chat with:
+  - `userRole` and `aiRole` (`FATHER`, `MOTHER`, `KIWI`, `VIVI`, `GRANDPARENT`)
+  - `childFocus`, `targetLevel`, `turnsLimit`, `turnsTaken`
+  - `externalConversationId` (server-side only)
+  - `status` (`ACTIVE`, `COMPLETED`, `ARCHIVED`)
+  - optional `scenarioId` linked to the user's own `FamilyScenario`
+  - `finalFeedbackMarkdown` filled on `finish`
+- `FamilyRoleplayMessage` stores one transcript line with `sender` (`USER` or `AI`), `roleLabel`, `content`, and `turnNumber`.
+- The roleplay prompt builder has three modes:
+  - start prompt (opens the scene in character)
+  - turn prompt (continues the same character)
+  - finish prompt (becomes a Vietnamese coach reviewing the transcript)
+- Every roleplay turn reuses the stored `externalConversationId` so the AI keeps the same thread. The client cannot supply a conversation id.
+- Ownership is enforced before any read, write, or AI call. Conversation hijacking is not possible because the upstream id is server-managed and tied to one `FamilyRoleplaySession` row.
+- AI failures during a turn return a 503 to the runner and leave the session `ACTIVE` so the user can retry.
+- AI failures during `finish` still complete the session, with a fallback placeholder note for the saved feedback.
+- `FamilyChunk` now has an optional `sourceRoleplaySessionId` so a future Phase 7F can attach extracted chunks back to the roleplay that produced them, without touching IELTS tables.
+
+## Family daily coach architecture
+
+- `FamilyFavorite` stores polymorphic favorites with:
+  - `targetType` (`CONVERSATION`, `CHUNK`, `ROLEPLAY`, `SCENARIO`)
+  - per `(userId, targetType, targetId)` uniqueness
+  - server-side ownership check on the underlying target before upsert
+- `FamilyDailyPlanSnapshot` caches the AI daily plan with:
+  - `childFocus` and a SHA-1 `sourceHash` over `{ date, childFocus, dueCount, weakCount, chunkIds, scenarioId, conversationId, roleplay }`
+  - 12-hour TTL via `expiresAt`
+  - cache lookup keyed by `(userId, childFocus, sourceHash)`
+- The recommendation engine (`family-recommendation-service`) reads:
+  - approved family chunks + family review schedules
+  - active family scenarios
+  - recent family conversations (last 7 days)
+  - recent family roleplay sessions (last 7 days)
+  - the latest family conversation overall
+- The engine returns a `FamilyTodayRecommendations` object that drives both the AI prompt input and the UI action cards. It never reads IELTS tables.
+- The daily plan prompt is family-specific: it instructs the AI to mix concise Vietnamese with English example phrases, bold useful family chunks, and avoid IELTS framing.
+- Weekly insights use the same scoring + AI prompt pattern but compute live each visit; the AI summary is on-demand (no cache yet).
+
+## Family daily coach failure model
+
+- The recommendation engine works fully without AI — recommendation results are returned even when `AI_CHATFLOW_TOKEN` is unset.
+- AI failures during daily plan generation return a 503 with `code: "AI_TUTOR_UNAVAILABLE"`. The page keeps the recommendations and shows a friendly error.
+- AI failures during weekly summary generation return a 503; the snapshot stats are still visible.
+- Favorite operations are pure data operations and do not depend on AI.
+
+## Future-ready extension points
+
+- Voice features are intentionally deferred. The schema is forward-compatible:
+  - `FamilyRoleplayMessage` can grow an optional `audioUrl` column for stored voice without touching reads.
+  - `FamilyPracticeAnswer.responseTimeMs` already exists for any future speaking-time scoring.
+  - `FamilyDailyPlanSnapshot.answer` is `LONGTEXT` Markdown — TTS playback can read it directly.
+- The recommendation engine returns plain data so future surfaces (voice daily coach, scheduled push notifications) can reuse it.
+- All family AI prompts live under `src/server/ai/prompts/family-*`; a future `family-tts.ts` or `family-voice-roleplay.ts` slots in without changes elsewhere.
 
 ## AI feature surfaces
 

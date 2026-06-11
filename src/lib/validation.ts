@@ -9,8 +9,19 @@ import {
   FAMILY_CHUNK_CHILD_FOCUS,
   FAMILY_CHUNK_STATUSES,
   FAMILY_CONVERSATION_LENGTHS,
+  FAMILY_FAVORITE_TARGET_TYPES,
+  FAMILY_PRACTICE_EXERCISE_TYPES,
+  FAMILY_PRACTICE_MAX_DECK_SIZE,
+  FAMILY_PRACTICE_MODES,
+  FAMILY_ROLEPLAY_DEFAULT_TURNS,
+  FAMILY_ROLEPLAY_MAX_TURNS,
+  FAMILY_ROLEPLAY_MIN_TURNS,
+  FAMILY_ROLEPLAY_ROLES,
   FAMILY_SPEAKER_ROLES,
   FAMILY_TARGET_LEVELS,
+  TRANSLATION_FROM_QUESTION_LENGTHS,
+  TRANSLATION_FROM_QUESTION_MAX_CHUNKS,
+  TRANSLATION_RECALL_CONFIDENCES,
   IELTS_SKILLS,
   IELTS_TASK_TYPES,
   PRACTICE_MODES,
@@ -140,6 +151,189 @@ export const familyChunkBulkStatusUpdateSchema = z.object({
     .min(1, "Select at least one chunk.")
     .max(100, "Too many chunks selected at once."),
   status: z.enum(FAMILY_CHUNK_STATUSES),
+});
+
+export const familyPracticeStartSchema = z.object({
+  mode: z.enum(FAMILY_PRACTICE_MODES).optional().default("DAILY"),
+  maxItems: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(FAMILY_PRACTICE_MAX_DECK_SIZE)
+    .optional(),
+});
+
+export const familyPracticeSubmissionSchema = z.object({
+  mode: z.enum(FAMILY_PRACTICE_MODES),
+  startedAt: z.string().datetime().optional(),
+  answers: z
+    .array(
+      z.object({
+        familyChunkId: z.string().trim().min(1),
+        exerciseType: z.enum(FAMILY_PRACTICE_EXERCISE_TYPES),
+        prompt: z.string().min(1),
+        expectedAnswer: z.string().min(1),
+        userAnswer: z.string(),
+        isCorrect: z.boolean(),
+        responseTimeMs: z.coerce.number().int().min(0),
+        confidenceLevel: z.enum(CONFIDENCE_LEVELS),
+        feedback: z.string().optional(),
+      }),
+    )
+    .min(1, "At least one answer is required.")
+    .max(FAMILY_PRACTICE_MAX_DECK_SIZE),
+});
+
+export const familyPracticeAiFeedbackSchema = z.object({
+  familyChunkId: z.string().trim().min(1, "Family chunk is required."),
+  prompt: z
+    .string()
+    .trim()
+    .min(2, "Prompt is required.")
+    .max(4000, "Prompt is too long."),
+  userAnswer: z
+    .string()
+    .trim()
+    .min(2, "Your continuation is required.")
+    .max(4000, "Your continuation is too long."),
+});
+
+export const familyRoleplayStartSchema = z
+  .object({
+    scenarioId: z.string().trim().min(1).optional().nullable(),
+    userRole: z.enum(FAMILY_ROLEPLAY_ROLES),
+    aiRole: z.enum(FAMILY_ROLEPLAY_ROLES),
+    childFocus: z.enum(FAMILY_CHILD_FOCUS).optional().default("BOTH"),
+    targetLevel: z.enum(FAMILY_TARGET_LEVELS).optional().default("NATURAL"),
+    turnsLimit: z.coerce
+      .number()
+      .int()
+      .min(FAMILY_ROLEPLAY_MIN_TURNS)
+      .max(FAMILY_ROLEPLAY_MAX_TURNS)
+      .optional()
+      .default(FAMILY_ROLEPLAY_DEFAULT_TURNS),
+  })
+  .superRefine((input, context) => {
+    if (input.userRole === input.aiRole) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["aiRole"],
+        message: "AI role must differ from your role.",
+      });
+    }
+  });
+
+export const familyRoleplayMessageSchema = z.object({
+  sessionId: z.string().trim().min(1, "Session is required."),
+  message: z
+    .string()
+    .trim()
+    .min(1, "Message is required.")
+    .max(2000, "Message is too long."),
+});
+
+export const familyRoleplayFinishSchema = z.object({
+  sessionId: z.string().trim().min(1, "Session is required."),
+});
+
+export const familyRoleplayArchiveSchema = z.object({
+  sessionId: z.string().trim().min(1, "Session is required."),
+});
+
+export const familyRoleplayExtractSchema = z.object({
+  sessionId: z.string().trim().min(1, "Session is required."),
+});
+
+export const familyTodayPlanSchema = z.object({
+  childFocus: z.enum(FAMILY_CHILD_FOCUS).optional().default("BOTH"),
+  forceRefresh: z.boolean().optional().default(false),
+});
+
+export const familyFavoriteToggleSchema = z.object({
+  targetType: z.enum(FAMILY_FAVORITE_TARGET_TYPES),
+  targetId: z.string().trim().min(1, "Favorite target is required.").max(191),
+  note: z
+    .string()
+    .trim()
+    .max(255, "Favorite note is too long.")
+    .optional()
+    .nullable(),
+});
+
+export const familyFavoriteRemoveSchema = z.object({
+  targetType: z.enum(FAMILY_FAVORITE_TARGET_TYPES),
+  targetId: z.string().trim().min(1, "Favorite target is required.").max(191),
+});
+
+export const familyInsightsSummarySchema = z.object({
+  forceRefresh: z.boolean().optional().default(false),
+});
+
+export const translationCsvRowSchema = z.object({
+  title: z.string().trim().min(2).max(191),
+  topic: z.string().trim().min(2).max(120),
+  bandLevel: z.coerce.number().min(4).max(9).default(6),
+  englishText: z.string().trim().min(2),
+  vietnameseText: z.string().trim().min(2),
+});
+
+export const translationExtractChunkSchema = z.object({
+  sentenceId: z.string().trim().min(1, "Sentence is required."),
+  englishPhrase: z
+    .string()
+    .trim()
+    .min(2, "Selected phrase is too short.")
+    .max(191, "Selected phrase is too long."),
+});
+
+export const translationSaveChunkSchema = z.object({
+  sentenceId: z.string().trim().min(1, "Sentence is required."),
+  englishPhrase: z
+    .string()
+    .trim()
+    .min(2, "Chunk text is required.")
+    .max(191, "Chunk text is too long."),
+  meaningVi: z
+    .string()
+    .trim()
+    .min(2, "Vietnamese meaning is required.")
+    .max(255, "Vietnamese meaning is too long."),
+  example: z
+    .string()
+    .trim()
+    .min(5, "Example is too short.")
+    .max(4000, "Example is too long."),
+  usageContext: z.string().trim().max(4000).optional().nullable(),
+  suggestedTopic: z.string().trim().max(120).optional().nullable(),
+  bandEstimate: z.coerce.number().min(4).max(9).optional().default(6),
+  tags: z
+    .array(z.string().trim().min(1))
+    .max(20)
+    .optional()
+    .default([]),
+});
+
+export const translationReviewSchema = z.object({
+  sentenceId: z.string().trim().min(1, "Sentence is required."),
+  confidence: z.enum(TRANSLATION_RECALL_CONFIDENCES),
+});
+
+export const translationFromQuestionSchema = z.object({
+  speakingQuestionId: z
+    .string()
+    .trim()
+    .min(1, "Speaking question is required."),
+  targetBand: z.coerce.number().min(4).max(9).optional(),
+  length: z.enum(TRANSLATION_FROM_QUESTION_LENGTHS).optional().default("MEDIUM"),
+  includeChunkLibrary: z.boolean().optional().default(true),
+  regenerate: z.boolean().optional().default(false),
+  maxChunks: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(TRANSLATION_FROM_QUESTION_MAX_CHUNKS)
+    .optional()
+    .default(TRANSLATION_FROM_QUESTION_MAX_CHUNKS),
 });
 
 export const questionChunkMappingSchema = z.object({
@@ -357,4 +551,49 @@ export type FamilyChunkStatusUpdatePayload = z.infer<
 >;
 export type FamilyChunkBulkStatusUpdatePayload = z.infer<
   typeof familyChunkBulkStatusUpdateSchema
+>;
+export type FamilyPracticeStartPayload = z.infer<
+  typeof familyPracticeStartSchema
+>;
+export type FamilyPracticeSubmissionPayload = z.infer<
+  typeof familyPracticeSubmissionSchema
+>;
+export type FamilyPracticeAiFeedbackPayload = z.infer<
+  typeof familyPracticeAiFeedbackSchema
+>;
+export type FamilyRoleplayStartPayload = z.infer<
+  typeof familyRoleplayStartSchema
+>;
+export type FamilyRoleplayMessagePayload = z.infer<
+  typeof familyRoleplayMessageSchema
+>;
+export type FamilyRoleplayFinishPayload = z.infer<
+  typeof familyRoleplayFinishSchema
+>;
+export type FamilyRoleplayArchivePayload = z.infer<
+  typeof familyRoleplayArchiveSchema
+>;
+export type FamilyRoleplayExtractPayload = z.infer<
+  typeof familyRoleplayExtractSchema
+>;
+export type FamilyTodayPlanPayload = z.infer<typeof familyTodayPlanSchema>;
+export type FamilyFavoriteTogglePayload = z.infer<
+  typeof familyFavoriteToggleSchema
+>;
+export type FamilyFavoriteRemovePayload = z.infer<
+  typeof familyFavoriteRemoveSchema
+>;
+export type FamilyInsightsSummaryPayload = z.infer<
+  typeof familyInsightsSummarySchema
+>;
+export type TranslationCsvRow = z.infer<typeof translationCsvRowSchema>;
+export type TranslationExtractChunkPayload = z.infer<
+  typeof translationExtractChunkSchema
+>;
+export type TranslationSaveChunkPayload = z.infer<
+  typeof translationSaveChunkSchema
+>;
+export type TranslationReviewPayload = z.infer<typeof translationReviewSchema>;
+export type TranslationFromQuestionPayload = z.infer<
+  typeof translationFromQuestionSchema
 >;

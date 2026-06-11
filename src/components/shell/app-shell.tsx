@@ -54,6 +54,7 @@ const iconMap = {
   "/chunks": <FileTextOutlined />,
   "/practice": <ToolOutlined />,
   "/review": <ScheduleOutlined />,
+  "/translation": <ReadOutlined />,
   "/progress": <LineChartOutlined />,
   "/family": <HomeOutlined />,
   "/family/profile": <IdcardOutlined />,
@@ -61,6 +62,10 @@ const iconMap = {
   "/family/conversations": <CommentOutlined />,
   "/family/chunks": <TagsOutlined />,
   "/family/practice": <ReadOutlined />,
+  "/family/roleplay": <RobotOutlined />,
+  "/family/today": <BulbOutlined />,
+  "/family/insights": <LineChartOutlined />,
+  "/family/favorites": <TagsOutlined />,
   "/admin": <SafetyOutlined />,
 } as const;
 

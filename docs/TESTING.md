@@ -98,6 +98,69 @@ Use Node `22+` for local test execution. In this environment, `pnpm test` on the
 - `src/tests/middleware.test.ts`
   - `/family` and `/family/profile` auth redirects
   - approved-user access to family routes
+- `src/tests/family-spaced-repetition.test.ts`
+  - family interval reset on incorrect answers
+  - confident-correct extension
+  - supported family intervals
+- `src/tests/family-practice.test.ts`
+  - stage routing per mastery score
+  - priority queue for due, personal, weak, and fresh chunks
+  - deterministic deck generation
+  - answer evaluation for recall, recognition, and production exercises
+  - summary aggregation
+- `src/tests/family-practice-service.test.ts`
+  - approved-only chunk selection
+  - deck generation with review snapshots
+  - ownership protection on session submit
+  - rejection of non-approved chunks on submit
+  - session, answer, and family review schedule writes
+- `src/tests/family-practice-submit-route.test.ts`
+  - approved-user enforcement
+  - payload validation
+  - session id and summary on success
+- `src/tests/family-practice-ai-feedback-route.test.ts`
+  - approved-user enforcement
+  - payload validation
+  - graceful AI failure handling
+- `src/tests/family-practice-ai-feedback-service.test.ts`
+  - ownership protection
+  - approved-chunk requirement
+  - AI failure fallback
+- `src/tests/family-dashboard-service.test.ts`
+  - weekly accuracy and streak math
+  - top scenarios and speaker roles
+  - empty-state handling
+- `src/tests/family-roleplay-service.test.ts`
+  - start: ownership check on scenarios, AI failure fallback, AI first-message persistence
+  - message: ownership check, archived-session guard, reuse of stored externalConversationId
+  - finish: completed status with feedback on AI success, fallback feedback on AI failure, rejection of empty transcripts
+  - archive: ownership check, status flip
+  - detail: ownership protection, mapped record return
+- `src/tests/family-roleplay-route.test.ts`
+  - approved-user enforcement on all routes
+  - rejection of identical user and AI roles
+  - ownership propagation through the route layer
+  - sessions list and detail GET routes
+- `src/tests/family-recommendation-service.test.ts`
+  - empty-state behavior with no approved chunks
+  - prioritization of due reviews above personalization
+  - child focus filtering for `KIWI`
+  - fresh scenario preference when a recent one exists
+  - roleplay AI role alternation for `BOTH` focus
+- `src/tests/family-daily-plan-service.test.ts`
+  - cached snapshot reuse when the source hash matches
+  - AI call + snapshot upsert on cache miss
+  - `AI_TUTOR_UNAVAILABLE` fallback
+  - `forceRefresh` bypass of the cache
+  - AppError propagation when AI throws an AppError
+- `src/tests/family-favorites-service.test.ts`
+  - target-ownership rejection
+  - upsert + remove behavior
+  - empty listing and label joining across target types
+- `src/tests/family-daily-coach-route.test.ts`
+  - today plan route auth + AI failure handling
+  - favorites GET/POST/DELETE auth + validation
+  - insights summary route auth + success
 
 ## Coverage focus
 
@@ -129,3 +192,90 @@ Use Node `22+` for local test execution. In this environment, `pnpm test` on the
 - Confirm `/family/chunks` supports manual add, edit, approve, archive, restore, bulk approve/archive, and all filters.
 - Confirm duplicate extraction does not create duplicate family chunks for the same user.
 - Confirm family routes stay separate from IELTS pages during the same session.
+
+## Manual Family Practice verification checklist
+
+- Approve at least one family chunk before starting family practice.
+- Confirm `/family/practice` shows approved-chunks, due reviews, weekly accuracy, and streak stats.
+- Confirm switching modes between Daily, Review, and Mixed reloads the deck without page navigation.
+- Confirm the deck runner shows a single column on mobile (`375x667` / `390x844`) with no horizontal overflow.
+- Confirm the action button stays reachable near the bottom of the viewport on mobile.
+- Confirm the `Ask AI` button only appears for `CONTINUE_CONVERSATION` exercises after checking the answer.
+- Confirm completing a session creates a `FamilyPracticeSession`, `FamilyPracticeAnswer`, and `FamilyReviewSchedule` per chunk in MySQL.
+- Confirm the family dashboard card on `/family` reflects the new session.
+- Confirm IELTS dashboard metrics, IELTS practice, IELTS review, and the IELTS chunk library remain unchanged.
+
+## Manual Family Roleplay verification checklist
+
+- Open `/family/roleplay` and start a new session with AI as Kiwi.
+- Send several messages; confirm the AI stays in character and never sounds like an IELTS examiner.
+- Confirm the same upstream conversation thread is reused across turns (AI remembers earlier messages).
+- Confirm `userRole === aiRole` is rejected by the start form.
+- Finish a session and confirm the Markdown coach review renders the five fixed sections.
+- Archive a completed session and confirm it moves out of the Active and Completed tabs.
+- Resume an active session from the history list and confirm the transcript is preserved.
+- Confirm `/family/practice` and the IELTS workspace still work.
+- Confirm mobile single-column layout at `375x667` / `390x844` with no horizontal overflow.
+
+## Manual Family Daily Coach verification checklist
+
+- Open `/family/today` and confirm the four hero stats reflect real family data (approved chunks, due reviews, weak chunks, recommended count).
+- Switch the child focus between Kiwi, Vivi, and Both — recommendations should refresh and the chunks list should respect the filter.
+- Tap "Generate today's plan" and confirm the Markdown plan renders the five required sections, then refresh and confirm the cached badge appears.
+- Tap the heart icon on a scenario, conversation, and chunk card; confirm each shows up on `/family/favorites`.
+- Open `/family/insights`, confirm the stats card matches last week's data, then tap "Generate AI summary" and confirm the Markdown summary renders.
+- Confirm `/family/favorites` filter works for each target type and the Remove button clears entries.
+- Confirm IELTS dashboard, IELTS practice, IELTS review, IELTS chunks, and `/family/practice` still work.
+- Confirm mobile single-column layout at `375x667` / `390x844` with no horizontal overflow.
+
+## Translation Recall coverage focus
+
+- `src/tests/translation-csv.test.ts`
+  - row schema validation
+  - empty CSV handling
+- `src/tests/translation-script-service.test.ts`
+  - empty CSV rejection
+  - invalid-row CSV rows
+  - first-time script create
+  - idempotent re-import
+  - reviewed-count listing
+- `src/tests/translation-chunk-service.test.ts`
+  - missing-sentence rejection
+  - structured JSON parsing
+  - malformed JSON handling
+  - AI failure fallback
+  - upsert chunk + mapping + topic creation
+- `src/tests/translation-review-service.test.ts`
+  - missing-sentence rejection
+  - new-review counters
+  - repeat-review increments
+- `src/tests/translation-routes.test.ts`
+  - auth + validation for extract/save/review/import
+  - XLSX rejection
+- `src/tests/translation-recall-from-question-service.test.ts`
+  - unknown question rejection
+  - duplicate detection for `(speakingQuestionId, targetBand)`
+  - chunk shortlist hard cap at 30
+  - fallback sentence splitting when AI omits aligned sentences
+  - non-JSON AI response fallback
+  - `AI_TUTOR_UNAVAILABLE` propagation
+  - new-version creation when `regenerate: true`
+  - `AppError` pass-through
+- `src/tests/translation-recall-from-question-route.test.ts`
+  - approved-user enforcement (auth + RBAC)
+  - missing speakingQuestionId rejection
+  - maxChunks above hard cap rejection
+  - success response shape
+
+## Manual Translation Recall from-question verification checklist
+
+- Sign in as an approved learner, open `/questions`, and pick a speaking question.
+- Tap "Create Translation Recall Script" in the question detail panel.
+- Confirm the modal shows the question prompt, lets you pick length and target band, and renders the result card after generation.
+- Confirm the result card lists the chunks the AI used and offers "Open in Translation Recall" plus "Generate another version".
+- Open the generated script and confirm Vietnamese is shown by default and English is blurred.
+- Reveal the English and confirm the used chunks are highlighted with a tooltip showing their Vietnamese meaning.
+- Generate a second version and confirm the question list shows the updated script count tag.
+- Generate without `regenerate` and confirm the existing script is returned (toast says "already exists").
+- Confirm IELTS practice, IELTS review, IELTS chunk library, the existing Translation Recall import flow, and Family English modules still work.
+- Confirm mobile single-column layout at `375x667` / `390x844`.

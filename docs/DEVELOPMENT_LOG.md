@@ -60,3 +60,48 @@
 - Replaced `/family/chunks` placeholder with a real review queue supporting manual add, edit, search, status tabs, child/speaker/category filters, and bulk approve/archive actions
 - Added `Extract Chunks` to family conversation detail, with extraction summary feedback and a deep link into `/family/chunks?status=SUGGESTED`
 - Added family chunk service and route coverage for validation, ownership protection, invalid AI output fallback, duplicate skipping, and approve/archive transitions
+
+## 2026-06-11
+
+- Added `FamilyPracticeSession`, `FamilyPracticeAnswer`, and `FamilyReviewSchedule` models with a dedicated migration so family practice and family review data stay separate from IELTS `PracticeSession`, `PracticeAnswer`, and `ReviewSchedule`
+- Added a separate family spaced repetition scheduler with `1`, `3`, `7`, `14`, and `30` day intervals and independent mastery tracking
+- Added a separate family practice deck generator supporting `VI_TO_CHUNK`, `FILL_IN_DIALOG`, `NATURAL_RESPONSE`, `CONTINUE_CONVERSATION`, and `FAMILY_CHUNK_RECALL` exercises with deterministic ordering and approved-only chunk selection
+- Added `POST /api/family/practice/start`, `POST /api/family/practice/submit`, and `POST /api/family/practice/ai-feedback` with approved-user, ownership, and validation enforcement
+- Replaced the `/family/practice` placeholder with a mobile-first deck runner that updates the family review schedule per chunk and never touches IELTS review data
+- Added a separate family practice AI feedback prompt builder, used only by `CONTINUE_CONVERSATION` exercises and failing gracefully without blocking practice
+- Added a family dashboard service and rendered chunks learned, due reviews, weekly accuracy, family streak, top scenarios, top speaker roles, and recent family practice activity on `/family`
+- Added family practice, family review, family submit route, family AI feedback route, family AI feedback service, and family dashboard service test coverage
+- Added `FamilyRoleplaySession` and `FamilyRoleplayMessage` models with a dedicated migration so the AI roleplay flow stays isolated from IELTS simulator, IELTS practice, and IELTS review data
+- Replaced the single placeholder roleplay prompt with three dedicated prompt builders for start, turn, and finish phases and enforced single-character, in-character behavior
+- Added `POST /api/family/roleplay/start`, `POST /api/family/roleplay/message`, `POST /api/family/roleplay/finish`, `POST /api/family/roleplay/archive`, `GET /api/family/roleplay/sessions`, and `GET /api/family/roleplay/sessions/[id]` with approved-user, ownership, and scenario-ownership enforcement
+- Stored the upstream `conversation_id` server-side on `FamilyRoleplaySession.externalConversationId` so the AI keeps the same chat thread across turns and the client cannot supply a conversation id
+- Added a mobile-first `/family/roleplay` UI with start form, transcript bubbles, send/finish/archive controls, history list, and safe Markdown coach review rendering
+- Added an optional `FamilyChunk.sourceRoleplaySessionId` link so a future follow-up can extract chunks from a finished roleplay without coupling to IELTS chunks
+- Added family roleplay service and route test coverage for ownership protection, identical-role rejection, AI failure fallback, and external conversation id isolation
+- Added `FamilyFavorite` and `FamilyDailyPlanSnapshot` models with a dedicated migration so the daily coach and favorites stay isolated from IELTS analytics
+- Added a deterministic family recommendation engine that scores approved chunks by due reviews, mastery, personalization, and frequency without touching IELTS practice or review data
+- Added `POST /api/family/today/plan` with SHA-1 source-hash caching of AI Markdown plans for 12 hours, plus a graceful 503 when AI is unavailable
+- Added `GET/POST/DELETE /api/family/favorites` with per-target ownership checks across conversations, chunks, scenarios, and roleplay sessions
+- Added `POST /api/family/insights/summary` for an AI Vietnamese coach review of the last 7 days, computed from family practice answers, conversations, roleplay sessions, and review schedules
+- Replaced the family workspace landing UX with a `/family/today` daily coach page that exposes a child-focus selector, one-click action cards, and favorite heart toggles
+- Added `/family/insights` with weekly accuracy, streak, top scenarios, weakest and strongest chunks, plus an on-demand AI summary
+- Added `/family/favorites` with filtering by target type and quick removal
+- Added recommendation engine, daily plan service, favorites service, and daily coach route test coverage
+- Added IELTS Translation Recall Lab as a separate IELTS module isolated from Chunk Practice, Review, Speaking Prompt Bank, and Family English Companion
+- Added `TranslationScript`, `TranslationSentence`, `TranslationChunkMapping`, and `TranslationSentenceReview` models with a dedicated migration (`0012_translation_recall`) and idempotent fingerprint-based CSV re-import
+- Added admin-only `POST /api/admin/translation/import` for CSV upload with row-level validation and friendly XLSX rejection
+- Added `POST /api/translation/extract-chunk` that asks AI for `chunk`, `meaningVi`, `usage`, `example`, `suggestedTopic`, and `bandEstimate` in strict JSON, with a separate prompt builder
+- Added `POST /api/translation/save-chunk` that upserts the existing IELTS `Chunk` row by `(chunk, meaningVi)` and stores a `TranslationChunkMapping` row linking the source sentence
+- Added `POST /api/translation/review` that records `EASY`/`MEDIUM`/`HARD` self-ratings in a dedicated `TranslationSentenceReview` table without touching IELTS `ReviewSchedule`
+- Added `/translation` list page, `/translation/[id]` script reader with hover (desktop) / tap (mobile) reveal, English-phrase selection, AI extract + manual save modal, and Speaking mode with self-rating
+- Added admin-only `/admin/translation` import view with row-level summary
+- Added `Translation Recall` to the IELTS sidebar
+- Added CSV validation, script service, chunk service, review service, and route auth tests for the new module
+- Added Question Bank → Translation Recall generation pipeline so a Speaking Question can produce an English sample answer + Vietnamese translation + aligned sentence pairs in one AI call, saved straight into the existing Translation Recall Lab
+- Extended `TranslationScript` with `sourceType`, `sourceQuestionId`, `generatedByAi`, `version`, and `usedChunkIds`, indexed for `(sourceQuestionId, bandLevel, version)` lookups (migration `0013_translation_recall_from_question`)
+- Added `POST /api/translation-recall/from-question` with approved-user enforcement, chunk-shortlist hard cap of 30, duplicate detection by `(sourceQuestionId, targetBand)`, regeneration with incremented `version`, structured-JSON AI parsing, and plain-text fallback when the JSON is malformed or missing aligned sentences
+- Added a "Create Translation Recall Script" panel + modal on `/questions` with length, target band, and chunk-library inclusion controls, plus a result card that links into Translation Recall and offers "Generate another version"
+- Added a Translation Recall script-count tag on the Question Bank list and resolved `usedChunkIds` into highlighted spans inside the Translation Recall reader so revealed English shows golden marks with Vietnamese tooltips
+- Added generation-service and route tests covering auth, validation, duplicate detection, chunk caps, structured JSON parsing, fallback behavior, regeneration, and AI failure fallback
+- Improved desktop sidebar contrast: active menu item now sits on the brand teal with white text, hover gets a translucent white wash, and group titles + idle items are bright enough on the dark gradient. Mobile drawer is untouched and continues to use the default light theme.
+- Fixed Chunk Library pagination so the size changer (8, 10, 20, 50, 100) actually works on both the desktop table and the mobile list. The previous controlled `pageSize: 8` prop locked the dropdown; switched to `defaultPageSize` plus explicit `pageSizeOptions` so the user's selection takes effect without changing any backend query limit.

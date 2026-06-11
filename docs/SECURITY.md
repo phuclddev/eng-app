@@ -38,4 +38,18 @@
 - Family chunk extraction validates all AI output before saving so invalid AI JSON does not create partial bad data.
 - Duplicate family chunks are blocked per user by normalized text, including during AI extraction.
 - Family chunks remain isolated from IELTS chunks by design and are not auto-enrolled into IELTS learning flows.
-- Future family roleplay sessions must continue enforcing per-user ownership before data is shown or edited.
+- Family roleplay sessions enforce per-user ownership on read, write, AI, finish, and archive endpoints.
+- Family roleplay AI requests reuse the server-stored `externalConversationId` per session; the client cannot supply a conversation id, so cross-user thread hijacking is not possible.
+- Family roleplay routes log metadata only:
+  - `userId`
+  - `sessionId`
+  - turn number on message
+  - whether final feedback exists on finish
+- Family roleplay routes do not log:
+  - the AI bearer token
+  - the full family profile markdown
+  - the full transcript
+  - the upstream `conversation_id`
+- Family roleplay enforces that `userRole !== aiRole` at validation time so the AI never accidentally plays as Phuc.
+- Roleplay scenarios are matched against the user's own `FamilyScenario` rows before being passed into the prompt builder.
+- AI failures during a roleplay turn never partially write transcripts: the user message and AI reply are saved together in a single transaction.

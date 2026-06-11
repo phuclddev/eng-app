@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { buildFamilyChunkExtractionPrompt } from "@/server/ai/prompts/family-chunk-extraction";
 import { buildFamilyConversationPrompt } from "@/server/ai/prompts/family-conversation";
-import { buildFamilyRoleplayPrompt } from "@/server/ai/prompts/family-roleplay";
+import {
+  buildFamilyRoleplayFinishPrompt,
+  buildFamilyRoleplayStartPrompt,
+  buildFamilyRoleplayTurnPrompt,
+} from "@/server/ai/prompts/family-roleplay";
 
 describe("family prompt builders", () => {
   it("builds family conversation prompts without IELTS framing", () => {
@@ -40,15 +44,53 @@ describe("family prompt builders", () => {
     expect(prompt).toContain("Just five minutes, please.");
   });
 
-  it("builds roleplay prompts with age-appropriate family tone", () => {
-    const prompt = buildFamilyRoleplayPrompt({
+  it("builds roleplay start prompts with age-appropriate family tone", () => {
+    const prompt = buildFamilyRoleplayStartPrompt({
       familySummary: "Vivi is playful and sometimes refuses medicine.",
+      aiRole: "VIVI",
+      userRole: "FATHER",
+      childFocus: "VIVI",
+      targetLevel: "NATURAL",
       scenarioTitle: "Vivi refusing medicine",
-      userRole: "DAD",
+      scenarioCategory: "Health",
+      scenarioDescription: "Bedtime, Vivi has a cough and refuses to take syrup.",
+      turnsLimit: 6,
     });
 
-    expect(prompt).toContain("age-appropriate and emotionally believable");
-    expect(prompt).toContain("Do not sound academic or IELTS-like.");
-    expect(prompt).toContain("User role: DAD");
+    expect(prompt).toContain("Stay in character");
+    expect(prompt).toContain("Avoid IELTS-style or academic phrasing.");
+    expect(prompt).toContain("almost-6-year-olds");
+    expect(prompt).toContain("Scenario title: Vivi refusing medicine");
+    expect(prompt).toContain("Your role (AI character): Vivi");
+  });
+
+  it("builds roleplay turn prompts that keep the AI in character", () => {
+    const prompt = buildFamilyRoleplayTurnPrompt({
+      aiRole: "KIWI",
+      userRole: "FATHER",
+      childFocus: "KIWI",
+      targetLevel: "NATURAL",
+      learnerMessage: "Not now sweetie, dinner first.",
+      turnNumber: 2,
+      turnsLimit: 6,
+    });
+
+    expect(prompt).toContain("Stay in character");
+    expect(prompt).toContain("Not now sweetie, dinner first.");
+    expect(prompt).toContain("turn 2 of about 6");
+  });
+
+  it("builds roleplay finish prompts as a Vietnamese coach review", () => {
+    const prompt = buildFamilyRoleplayFinishPrompt({
+      aiRole: "KIWI",
+      userRole: "FATHER",
+      targetLevel: "NATURAL",
+      transcript: "Dad: Time for dinner.\nKiwi: But I'm not hungry!",
+    });
+
+    expect(prompt).toContain("# Overall Feedback");
+    expect(prompt).toContain("# Useful Family Chunks");
+    expect(prompt).toContain("Markdown only");
+    expect(prompt).toContain("Transcript:");
   });
 });

@@ -2,11 +2,16 @@ import Papa from "papaparse";
 import { z } from "zod";
 
 import type { ChunkRecord } from "@/lib/types";
-import { chunkCsvRowSchema, questionCsvRowSchema } from "@/lib/validation";
+import {
+  chunkCsvRowSchema,
+  questionCsvRowSchema,
+  translationCsvRowSchema,
+} from "@/lib/validation";
 import { ValidationError } from "@/lib/errors";
 
 export type ChunkCsvRow = z.infer<typeof chunkCsvRowSchema>;
 export type QuestionCsvRow = z.infer<typeof questionCsvRowSchema>;
+export type TranslationCsvRow = z.infer<typeof translationCsvRowSchema>;
 
 export type ChunkCsvValidationError = {
   message: string;
@@ -92,6 +97,10 @@ export function parseQuestionCsv(csvText: string) {
   }
 
   return result.rows;
+}
+
+export function validateTranslationCsv(csvText: string) {
+  return validateCsvRows(csvText, translationCsvRowSchema);
 }
 
 export function exportChunksToCsv(chunks: ChunkRecord[]) {

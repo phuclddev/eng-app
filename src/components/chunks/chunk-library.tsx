@@ -311,8 +311,10 @@ export function ChunkLibrary({
               className="mobile-card-list"
               dataSource={filteredChunks}
               pagination={{
-                pageSize: 8,
+                defaultPageSize: 8,
                 align: "center",
+                showSizeChanger: true,
+                pageSizeOptions: [8, 10, 20, 50, 100],
               }}
               renderItem={(record) => (
                 <List.Item>
@@ -360,7 +362,11 @@ export function ChunkLibrary({
             <Table
               rowKey="id"
               dataSource={filteredChunks}
-              pagination={{ pageSize: 8 }}
+              pagination={{
+                defaultPageSize: 8,
+                showSizeChanger: true,
+                pageSizeOptions: [8, 10, 20, 50, 100],
+              }}
               scroll={{ x: 960 }}
               columns={[
                 {

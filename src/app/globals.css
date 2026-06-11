@@ -222,6 +222,61 @@ a {
   background: linear-gradient(180deg, #0f172a 0%, #152238 100%) !important;
 }
 
+.workspace-sider .ant-menu {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.workspace-sider .ant-menu-item-group-title {
+  color: rgba(255, 255, 255, 0.55) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  padding-inline-start: 12px;
+}
+
+.workspace-sider .ant-menu-item,
+.workspace-sider .ant-menu-item a {
+  color: rgba(255, 255, 255, 0.78) !important;
+}
+
+.workspace-sider .ant-menu-item .anticon {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.workspace-sider .ant-menu-item:hover,
+.workspace-sider .ant-menu-item-active {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+.workspace-sider .ant-menu-item:hover a,
+.workspace-sider .ant-menu-item-active a {
+  color: #ffffff !important;
+}
+
+.workspace-sider .ant-menu-item:hover .anticon,
+.workspace-sider .ant-menu-item-active .anticon {
+  color: #ffffff;
+}
+
+.workspace-sider .ant-menu-item-selected,
+.workspace-sider .ant-menu-item-selected:hover {
+  background-color: #0f766e !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 0 rgba(15, 118, 110, 0.4);
+}
+
+.workspace-sider .ant-menu-item-selected a,
+.workspace-sider .ant-menu-item-selected:hover a {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+.workspace-sider .ant-menu-item-selected .anticon,
+.workspace-sider .ant-menu-item-selected:hover .anticon {
+  color: #ffffff;
+}
+
 .brand-block {
   display: flex;
   align-items: flex-start;

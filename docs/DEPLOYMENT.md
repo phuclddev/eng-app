@@ -16,6 +16,7 @@ pnpm db:migrate:deploy
 pnpm prisma db seed
 pnpm build
 pm2 start ecosystem.config.cjs
+pm2 reload ielts-chunk-trainer --update-env
 ```
 
 ## Environment

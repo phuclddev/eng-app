@@ -56,6 +56,66 @@ export const FAMILY_CHUNK_STATUSES = [
   "APPROVED",
   "ARCHIVED",
 ] as const;
+export const FAMILY_PRACTICE_MODES = ["DAILY", "REVIEW", "MIXED"] as const;
+export const FAMILY_PRACTICE_EXERCISE_TYPES = [
+  "VI_TO_CHUNK",
+  "FILL_IN_DIALOG",
+  "NATURAL_RESPONSE",
+  "CONTINUE_CONVERSATION",
+  "FAMILY_CHUNK_RECALL",
+] as const;
+export const FAMILY_REVIEW_INTERVALS = [1, 3, 7, 14, 30] as const;
+export const FAMILY_PRACTICE_DEFAULT_DECK_SIZE = 8;
+export const FAMILY_PRACTICE_MAX_DECK_SIZE = 20;
+
+export const FAMILY_ROLEPLAY_ROLES = [
+  "FATHER",
+  "MOTHER",
+  "KIWI",
+  "VIVI",
+  "GRANDPARENT",
+] as const;
+export const FAMILY_ROLEPLAY_STATUSES = [
+  "ACTIVE",
+  "COMPLETED",
+  "ARCHIVED",
+] as const;
+export const FAMILY_ROLEPLAY_SENDERS = ["USER", "AI"] as const;
+export const FAMILY_ROLEPLAY_MIN_TURNS = 3;
+export const FAMILY_ROLEPLAY_MAX_TURNS = 12;
+export const FAMILY_ROLEPLAY_DEFAULT_TURNS = 8;
+
+export const FAMILY_FAVORITE_TARGET_TYPES = [
+  "CONVERSATION",
+  "CHUNK",
+  "ROLEPLAY",
+  "SCENARIO",
+] as const;
+export const FAMILY_DAILY_PLAN_TTL_MS = 12 * 60 * 60 * 1000;
+export const FAMILY_INSIGHTS_WINDOW_DAYS = 7;
+
+export const TRANSLATION_RECALL_CONFIDENCES = [
+  "EASY",
+  "MEDIUM",
+  "HARD",
+] as const;
+export const TRANSLATION_CSV_HEADERS = [
+  "title",
+  "topic",
+  "bandLevel",
+  "englishText",
+  "vietnameseText",
+] as const;
+export const TRANSLATION_SCRIPT_SOURCE_TYPES = [
+  "MANUAL",
+  "SPEAKING_QUESTION",
+] as const;
+export const TRANSLATION_FROM_QUESTION_LENGTHS = [
+  "SHORT",
+  "MEDIUM",
+  "LONG",
+] as const;
+export const TRANSLATION_FROM_QUESTION_MAX_CHUNKS = 30;
 export const EXERCISE_TYPES = [
   "MULTIPLE_CHOICE",
   "FILL_IN_BLANK",
@@ -152,6 +212,47 @@ export const FAMILY_CHUNK_STATUS_LABELS = {
   ARCHIVED: "Archived",
 } as const;
 
+export const FAMILY_PRACTICE_MODE_LABELS = {
+  DAILY: "Today's Practice",
+  REVIEW: "Today's Review",
+  MIXED: "Mixed Practice",
+} as const;
+
+export const FAMILY_PRACTICE_EXERCISE_LABELS = {
+  VI_TO_CHUNK: "Vietnamese to chunk",
+  FILL_IN_DIALOG: "Fill in the dialog",
+  NATURAL_RESPONSE: "Choose the natural response",
+  CONTINUE_CONVERSATION: "Continue the conversation",
+  FAMILY_CHUNK_RECALL: "Family chunk recall",
+} as const;
+
+export const FAMILY_ROLEPLAY_ROLE_LABELS = {
+  FATHER: "Father (Phuc)",
+  MOTHER: "Mother",
+  KIWI: "Kiwi",
+  VIVI: "Vivi",
+  GRANDPARENT: "Grandparent",
+} as const;
+
+export const FAMILY_ROLEPLAY_STATUS_LABELS = {
+  ACTIVE: "Active",
+  COMPLETED: "Completed",
+  ARCHIVED: "Archived",
+} as const;
+
+export const FAMILY_FAVORITE_TARGET_LABELS = {
+  CONVERSATION: "Conversation",
+  CHUNK: "Family chunk",
+  ROLEPLAY: "Roleplay session",
+  SCENARIO: "Scenario",
+} as const;
+
+export const TRANSLATION_RECALL_CONFIDENCE_LABELS = {
+  EASY: "Easy",
+  MEDIUM: "Medium",
+  HARD: "Hard",
+} as const;
+
 export const ROLE_LABELS = {
   USER: "Learner",
   ADMIN: "Admin",
@@ -173,16 +274,21 @@ export const IELTS_SIDEBAR_ITEMS = [
   { href: "/chunks", label: "Chunk Library", adminOnly: false },
   { href: "/practice", label: "Practice", adminOnly: false },
   { href: "/review", label: "Review", adminOnly: false },
+  { href: "/translation", label: "Translation Recall", adminOnly: false },
   { href: "/progress", label: "Progress", adminOnly: false },
 ] as const;
 
 export const FAMILY_SIDEBAR_ITEMS = [
+  { href: "/family/today", label: "Today's Plan", adminOnly: false },
   { href: "/family", label: "Family Home", adminOnly: false },
   { href: "/family/profile", label: "Family Profile", adminOnly: false },
   { href: "/family/scenarios", label: "Scenarios", adminOnly: false },
   { href: "/family/conversations", label: "Conversations", adminOnly: false },
   { href: "/family/chunks", label: "Family Chunks", adminOnly: false },
   { href: "/family/practice", label: "Family Practice", adminOnly: false },
+  { href: "/family/roleplay", label: "Family Roleplay", adminOnly: false },
+  { href: "/family/insights", label: "Weekly Insights", adminOnly: false },
+  { href: "/family/favorites", label: "Favorites", adminOnly: false },
 ] as const;
 
 export const ADMIN_SIDEBAR_ITEMS = [

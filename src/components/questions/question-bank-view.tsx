@@ -1,20 +1,29 @@
 "use client";
 
-import { LoadingOutlined, RobotOutlined } from "@ant-design/icons";
+import {
+  LoadingOutlined,
+  ReadOutlined,
+  RobotOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
 import {
   Alert,
+  App,
   Button,
   Card,
   Empty,
   Grid,
   Input,
+  InputNumber,
   List,
+  Modal,
   Select,
   Space,
   Tag,
   Typography,
 } from "antd";
-import { useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 
 import { AiMarkdownMessage } from "@/components/ai/ai-markdown-message";
 import { SpeakingSampleAnswerPanel } from "@/components/ai/speaking-sample-answer-panel";
@@ -27,20 +36,33 @@ import {
   IELTS_SKILL_LABELS,
   IELTS_TASK_TYPE_LABELS,
   QUESTION_CHUNK_USAGE_ROLE_LABELS,
+  TRANSLATION_FROM_QUESTION_LENGTHS,
 } from "@/lib/constants";
 import type {
   AiTutorStructuredFeedbackSection,
   IeltsQuestionRecord,
   IeltsTaskType,
+  TranslationFromQuestionLength,
+  TranslationRecallFromQuestionResponse,
+  TranslationRecallQuestionStat,
 } from "@/lib/types";
+
+const LENGTH_LABELS: Record<TranslationFromQuestionLength, string> = {
+  SHORT: "Short",
+  MEDIUM: "Medium",
+  LONG: "Long",
+};
 
 export function QuestionBankView({
   aiTutorEnabled,
   questions,
+  translationStats,
 }: {
   aiTutorEnabled: boolean;
   questions: IeltsQuestionRecord[];
+  translationStats: TranslationRecallQuestionStat[];
 }) {
+  const { message } = App.useApp();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const [search, setSearch] = useState("");
@@ -72,6 +94,99 @@ export function QuestionBankView({
       }
     >
   >({});
+  const [translationStatsByQuestion, setTranslationStatsByQuestion] = useState(
+    () =>
+      new Map(
+        translationStats.map((stat) => [stat.questionId, stat]),
+      ),
+  );
+  const [translationModalQuestionId, setTranslationModalQuestionId] = useState<
+    string | null
+  >(null);
+  const [translationLength, setTranslationLength] =
+    useState<TranslationFromQuestionLength>("MEDIUM");
+  const [translationTargetBand, setTranslationTargetBand] = useState<number | null>(null);
+  const [translationIncludeChunkLibrary, setTranslationIncludeChunkLibrary] =
+    useState(true);
+  const [translationLoading, setTranslationLoading] = useState(false);
+  const [translationResult, setTranslationResult] =
+    useState<TranslationRecallFromQuestionResponse | null>(null);
+  const [translationError, setTranslationError] = useState<string | null>(null);
+
+  const translationModalQuestion = useMemo(
+    () =>
+      translationModalQuestionId
+        ? questions.find((question) => question.id === translationModalQuestionId) ??
+          null
+        : null,
+    [questions, translationModalQuestionId],
+  );
+
+  const runTranslationGeneration = async (input: {
+    speakingQuestionId: string;
+    regenerate: boolean;
+  }) => {
+    setTranslationLoading(true);
+    setTranslationError(null);
+
+    try {
+      const response = await fetch("/api/translation-recall/from-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          speakingQuestionId: input.speakingQuestionId,
+          targetBand: translationTargetBand ?? undefined,
+          length: translationLength,
+          includeChunkLibrary: translationIncludeChunkLibrary,
+          regenerate: input.regenerate,
+        }),
+      });
+      const data = (await response.json()) as
+        | TranslationRecallFromQuestionResponse
+        | { message?: string; error?: string };
+
+      if (!response.ok || !("script" in data)) {
+        const errorMessage =
+          (data as { message?: string }).message ??
+          "Could not create Translation Recall script.";
+        throw new Error(errorMessage);
+      }
+
+      setTranslationResult(data);
+
+      setTranslationStatsByQuestion((current) => {
+        const next = new Map(current);
+        const existing = next.get(input.speakingQuestionId) ?? {
+          questionId: input.speakingQuestionId,
+          scriptCount: 0,
+          latestScriptId: null,
+        };
+        const scriptCount = data.duplicate
+          ? Math.max(existing.scriptCount, 1)
+          : existing.scriptCount + 1;
+        next.set(input.speakingQuestionId, {
+          questionId: input.speakingQuestionId,
+          scriptCount,
+          latestScriptId: data.script.id,
+        });
+        return next;
+      });
+
+      if (data.duplicate) {
+        message.info("A Translation Recall script already exists for this question.");
+      } else {
+        message.success("Translation Recall script created.");
+      }
+    } catch (error) {
+      setTranslationError(
+        error instanceof Error
+          ? error.message
+          : "Could not create Translation Recall script.",
+      );
+    } finally {
+      setTranslationLoading(false);
+    }
+  };
 
   const filteredQuestions = questions.filter((question) => {
     const matchesTask = taskType ? question.taskType === taskType : true;
@@ -310,6 +425,16 @@ export function QuestionBankView({
                           </Tag>
                           <Tag>{question.topic}</Tag>
                           {question.subTopic ? <Tag>{question.subTopic}</Tag> : null}
+                          {(() => {
+                            const count =
+                              translationStatsByQuestion.get(question.id)
+                                ?.scriptCount ?? 0;
+                            return count > 0 ? (
+                              <Tag color="green" icon={<ReadOutlined />}>
+                                {count} translation script{count === 1 ? "" : "s"}
+                              </Tag>
+                            ) : null;
+                          })()}
                         </Space>
                       }
                       description={
@@ -462,6 +587,60 @@ export function QuestionBankView({
                   question={selectedQuestion}
                 />
 
+                <Card
+                  size="small"
+                  title="Translation Recall Lab"
+                  extra={
+                    translationStatsByQuestion.get(selectedQuestion.id)
+                      ?.scriptCount ? (
+                      <Tag color="green">
+                        {
+                          translationStatsByQuestion.get(selectedQuestion.id)
+                            ?.scriptCount
+                        }{" "}
+                        existing
+                      </Tag>
+                    ) : null
+                  }
+                >
+                  <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                    <Typography.Text type="secondary" className="wrap-anywhere">
+                      Auto-generate an English sample answer + aligned Vietnamese translation and
+                      save it into Translation Recall Lab.
+                    </Typography.Text>
+                    <Space wrap>
+                      <Button
+                        type="primary"
+                        icon={<ThunderboltOutlined />}
+                        disabled={!aiTutorEnabled}
+                        onClick={() => {
+                          setTranslationModalQuestionId(selectedQuestion.id);
+                          setTranslationLength("MEDIUM");
+                          setTranslationTargetBand(selectedQuestion.targetBand);
+                          setTranslationIncludeChunkLibrary(true);
+                          setTranslationResult(null);
+                          setTranslationError(null);
+                        }}
+                      >
+                        Create Translation Recall Script
+                      </Button>
+                      {translationStatsByQuestion.get(selectedQuestion.id)
+                        ?.latestScriptId ? (
+                        <Button>
+                          <Link
+                            href={`/translation/${translationStatsByQuestion.get(selectedQuestion.id)?.latestScriptId ?? ""}`}
+                          >
+                            Open latest script
+                          </Link>
+                        </Button>
+                      ) : null}
+                    </Space>
+                    {!aiTutorEnabled ? (
+                      <Tag color="warning">AI not configured</Tag>
+                    ) : null}
+                  </Space>
+                </Card>
+
                 {selectedQuestion.supportingPoints.length > 0 ? (
                   <div>
                     <Typography.Text strong>Prompt support</Typography.Text>
@@ -530,6 +709,180 @@ export function QuestionBankView({
           </Card>
         </div>
       </Space>
+
+      <Modal
+        open={Boolean(translationModalQuestionId)}
+        title="Create Translation Recall Script"
+        onCancel={() => {
+          setTranslationModalQuestionId(null);
+          setTranslationResult(null);
+          setTranslationError(null);
+        }}
+        footer={null}
+        destroyOnHidden
+        width={isMobile ? "100%" : 720}
+      >
+        {translationModalQuestion ? (
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            <Space wrap>
+              <Tag color="blue">
+                {IELTS_TASK_TYPE_LABELS[translationModalQuestion.taskType]}
+              </Tag>
+              <Tag>{translationModalQuestion.topic}</Tag>
+              <Tag color="purple">
+                Band {(translationTargetBand ?? translationModalQuestion.targetBand).toFixed(1)}
+              </Tag>
+            </Space>
+            <Typography.Text className="wrap-anywhere">
+              {translationModalQuestion.prompt}
+            </Typography.Text>
+
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <Space wrap>
+                <Typography.Text strong>Length</Typography.Text>
+                <Select<TranslationFromQuestionLength>
+                  value={translationLength}
+                  onChange={(value) => setTranslationLength(value)}
+                  options={TRANSLATION_FROM_QUESTION_LENGTHS.map((value) => ({
+                    value,
+                    label: LENGTH_LABELS[value],
+                  }))}
+                  style={{ width: 140 }}
+                  disabled={translationLoading}
+                />
+                <Typography.Text strong>Target band</Typography.Text>
+                <InputNumber
+                  value={
+                    translationTargetBand ?? translationModalQuestion.targetBand
+                  }
+                  min={4}
+                  max={9}
+                  step={0.5}
+                  disabled={translationLoading}
+                  onChange={(value) =>
+                    setTranslationTargetBand(
+                      typeof value === "number" ? value : null,
+                    )
+                  }
+                />
+              </Space>
+              <Space>
+                <Button
+                  size="small"
+                  type={translationIncludeChunkLibrary ? "primary" : "default"}
+                  onClick={() => setTranslationIncludeChunkLibrary(true)}
+                  disabled={translationLoading}
+                >
+                  Use chunk library
+                </Button>
+                <Button
+                  size="small"
+                  type={!translationIncludeChunkLibrary ? "primary" : "default"}
+                  onClick={() => setTranslationIncludeChunkLibrary(false)}
+                  disabled={translationLoading}
+                >
+                  Recommended chunks only
+                </Button>
+              </Space>
+            </Space>
+
+            <Space wrap>
+              <Button
+                type="primary"
+                icon={
+                  translationLoading ? <LoadingOutlined /> : <ThunderboltOutlined />
+                }
+                loading={translationLoading}
+                disabled={translationLoading || !aiTutorEnabled}
+                onClick={() =>
+                  void runTranslationGeneration({
+                    speakingQuestionId: translationModalQuestion.id,
+                    regenerate: false,
+                  })
+                }
+              >
+                {translationResult?.duplicate
+                  ? "Reuse existing script"
+                  : "Generate script"}
+              </Button>
+              {translationResult ? (
+                <Button
+                  icon={
+                    translationLoading ? <LoadingOutlined /> : <ThunderboltOutlined />
+                  }
+                  loading={translationLoading}
+                  disabled={translationLoading || !aiTutorEnabled}
+                  onClick={() =>
+                    void runTranslationGeneration({
+                      speakingQuestionId: translationModalQuestion.id,
+                      regenerate: true,
+                    })
+                  }
+                >
+                  Generate another version
+                </Button>
+              ) : null}
+            </Space>
+
+            {translationError ? (
+              <Alert type="warning" showIcon message={translationError} />
+            ) : null}
+
+            {translationResult ? (
+              <Card size="small" title={translationResult.script.title}>
+                <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                  <Space wrap>
+                    <Tag color="cyan">
+                      Band {translationResult.script.bandLevel.toFixed(1)}
+                    </Tag>
+                    <Tag>v{translationResult.script.version}</Tag>
+                    <Tag>{translationResult.script.sentenceCount} sentences</Tag>
+                    {translationResult.duplicate ? (
+                      <Tag color="gold">Existing</Tag>
+                    ) : (
+                      <Tag color="green">Created</Tag>
+                    )}
+                    {translationResult.fallbackUsed ? (
+                      <Tag color="orange">Fallback split</Tag>
+                    ) : null}
+                  </Space>
+                  {translationResult.usedChunks.length > 0 ? (
+                    <Space wrap>
+                      <Typography.Text strong>Chunks used</Typography.Text>
+                      {translationResult.usedChunks.map((chunk) => (
+                        <Tag key={chunk.id} color="purple">
+                          {chunk.chunk}
+                        </Tag>
+                      ))}
+                    </Space>
+                  ) : null}
+                  {translationResult.warnings.length > 0 ? (
+                    <Alert
+                      type="info"
+                      showIcon
+                      message="Notes"
+                      description={
+                        <ul style={{ paddingLeft: 18, margin: 0 }}>
+                          {translationResult.warnings.map((warning) => (
+                            <li key={warning}>{warning}</li>
+                          ))}
+                        </ul>
+                      }
+                    />
+                  ) : null}
+                  <Space wrap>
+                    <Button type="primary" icon={<ReadOutlined />}>
+                      <Link href={`/translation/${translationResult.script.id}`}>
+                        Open in Translation Recall
+                      </Link>
+                    </Button>
+                  </Space>
+                </Space>
+              </Card>
+            ) : null}
+          </Space>
+        ) : null}
+      </Modal>
     </div>
   );
 }

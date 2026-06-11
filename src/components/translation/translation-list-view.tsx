@@ -1,0 +1,81 @@
+"use client";
+
+import { CloudUploadOutlined, ReadOutlined } from "@ant-design/icons";
+import { Button, Card, Col, Empty, Row, Space, Tag, Typography } from "antd";
+import Link from "next/link";
+
+import type { TranslationScriptSummary } from "@/lib/types";
+import { formatDateTime } from "@/lib/utils";
+
+export function TranslationListView({
+  scripts,
+  isAdmin,
+}: {
+  scripts: TranslationScriptSummary[];
+  isAdmin: boolean;
+}) {
+  return (
+    <Space direction="vertical" size={20} style={{ width: "100%" }}>
+      <div>
+        <Typography.Title level={2} style={{ marginBottom: 4 }}>
+          Translation Recall Lab
+        </Typography.Title>
+        <Typography.Text type="secondary" className="wrap-anywhere">
+          Convert Vietnamese meaning into spoken English. Hover or tap to reveal the English, save
+          chunks straight to your IELTS library, then practice silently in Speaking mode.
+        </Typography.Text>
+      </div>
+
+      {isAdmin ? (
+        <Card>
+          <Space wrap>
+            <Button icon={<CloudUploadOutlined />} type="primary">
+              <Link href="/admin/translation">Import translation CSV</Link>
+            </Button>
+            <Typography.Text type="secondary">
+              CSV headers: title, topic, bandLevel, englishText, vietnameseText.
+            </Typography.Text>
+          </Space>
+        </Card>
+      ) : null}
+
+      {scripts.length === 0 ? (
+        <Card>
+          <Empty
+            description="No translation scripts yet. Ask an admin to import a CSV."
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        </Card>
+      ) : (
+        <Row gutter={[16, 16]}>
+          {scripts.map((script) => (
+            <Col key={script.id} xs={24} md={12} xl={8}>
+              <Card
+                title={script.title}
+                extra={
+                  <Tag color="cyan">Band {script.bandLevel.toFixed(1)}</Tag>
+                }
+              >
+                <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                  <Space wrap>
+                    <Tag color="blue">{script.topic}</Tag>
+                    <Tag>{script.sentenceCount} sentences</Tag>
+                    <Tag color={script.reviewedCount > 0 ? "green" : "default"}>
+                      {script.reviewedCount}/{script.sentenceCount} reviewed
+                    </Tag>
+                  </Space>
+                  <Typography.Text type="secondary">
+                    Updated {formatDateTime(script.updatedAt)}
+                  </Typography.Text>
+                  <Button type="primary" icon={<ReadOutlined />}>
+                    <Link href={`/translation/${script.id}`}>Open script</Link>
+                  </Button>
+                </Space>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      )}
+    </Space>
+  );
+}

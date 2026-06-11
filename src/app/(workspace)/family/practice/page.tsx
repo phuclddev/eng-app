@@ -1,19 +1,33 @@
-import { FamilyPlaceholderView } from "@/components/family/family-placeholder-view";
+import { FamilyPracticeView } from "@/components/family/family-practice-view";
+import { isAiTutorConfigured } from "@/lib/env";
 import { requireApprovedSession } from "@/server/auth";
+import { buildFamilyDashboardSnapshot } from "@/server/family/family-dashboard-service";
+import { buildFamilyPracticeDeckForUser } from "@/server/family/family-practice-service";
+import { listActiveFamilyScenarios } from "@/server/family/family-scenario-service";
 
 export default async function FamilyPracticePage() {
-  await requireApprovedSession();
+  const session = await requireApprovedSession();
+
+  const [dashboard, deck, scenarios] = await Promise.all([
+    buildFamilyDashboardSnapshot({ userId: session.user.id }),
+    buildFamilyPracticeDeckForUser({
+      userId: session.user.id,
+      mode: "DAILY",
+    }),
+    listActiveFamilyScenarios({
+      userId: session.user.id,
+      email: session.user.email,
+    }),
+  ]);
+
+  const recommendedScenario = scenarios[0] ?? null;
 
   return (
-    <FamilyPlaceholderView
-      title="Family Practice"
-      description="Family conversation practice will be implemented here with separate progress tracking and no impact on IELTS review metrics."
-      plannedItems={[
-        "Vietnamese to English recall for family chunks",
-        "Fill-in-the-blank family dialogues",
-        "Choose the natural response",
-        "Continue the conversation practice",
-      ]}
+    <FamilyPracticeView
+      initialDeck={deck}
+      dashboard={dashboard}
+      recommendedScenario={recommendedScenario}
+      aiFeedbackEnabled={isAiTutorConfigured()}
     />
   );
 }
