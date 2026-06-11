@@ -9,8 +9,8 @@ CREATE TABLE `FamilyConversationRecallLine` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `FamilyConversationRecallLine_conversationId_orderIndex_key`(`conversationId`, `orderIndex`),
-    INDEX `FamilyConversationRecallLine_conversationId_idx`(`conversationId`),
+    UNIQUE INDEX `fcrl_conv_order_key`(`conversationId`, `orderIndex`),
+    INDEX `fcrl_conv_idx`(`conversationId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -25,9 +25,9 @@ CREATE TABLE `FamilyConversationRecallAttempt` (
     `feedbackMarkdown` LONGTEXT NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
-    INDEX `FamilyConversationRecallAttempt_userId_createdAt_idx`(`userId`, `createdAt` DESC),
-    INDEX `FamilyConversationRecallAttempt_userId_conversationId_createdAt_idx`(`userId`, `conversationId`, `createdAt` DESC),
-    INDEX `FamilyConversationRecallAttempt_userId_lineId_createdAt_idx`(`userId`, `lineId`, `createdAt` DESC),
+    INDEX `fcra_user_created_idx`(`userId`, `createdAt` DESC),
+    INDEX `fcra_user_conv_created_idx`(`userId`, `conversationId`, `createdAt` DESC),
+    INDEX `fcra_user_line_created_idx`(`userId`, `lineId`, `createdAt` DESC),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
