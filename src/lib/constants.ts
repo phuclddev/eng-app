@@ -129,6 +129,11 @@ export const TRANSLATION_RECALL_CONFIDENCES = [
   "MEDIUM",
   "HARD",
 ] as const;
+export const TRANSLATION_RECALL_ATTEMPT_MODES = [
+  "SENTENCE",
+  "PASSAGE",
+] as const;
+export const FAMILY_CONVERSATION_RECALL_MODES = ["LINE", "FULL"] as const;
 export const TRANSLATION_CSV_HEADERS = [
   "title",
   "topic",

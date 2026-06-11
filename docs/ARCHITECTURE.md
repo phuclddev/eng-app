@@ -96,6 +96,13 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
 - AI extraction failures return `503 AI_TUTOR_UNAVAILABLE`; the user can still manually save the highlighted phrase to the chunk library.
 - Translation imports validate the whole CSV first and only write to the DB once the rows pass schema validation.
 
+## Translation Recall active production (Compare with AI)
+
+- `TranslationRecallAttempt` stores one user attempt per script (and optional sentence) with `mode` (`SENTENCE`/`PASSAGE`), `userAnswer`, `score`, and the full AI `feedbackMarkdown`. Indexes on `(userId, createdAt)` and `(userId, sentenceId, createdAt)` keep attempt history queries cheap.
+- `POST /api/translation-recall/compare` is approved-user only. The server selects either a specific sentence (SENTENCE mode) or the full joined passage (PASSAGE mode), builds a strict Markdown prompt that asks the AI to grade in Vietnamese, parses the score from the `# Score` heading via regex, and parses the `# Missing Chunks` bullet list back into structured objects for the UI.
+- The Compare mode is added alongside the existing Reveal and Speaking modes on `/translation/[id]`. The original English stays hidden until the learner taps "Reveal original" after seeing the score. AI failure does not block reveal, manual save, or review tracking — those flows continue working without AI.
+- Missing chunks parsed from the feedback open the existing chunk-save modal pre-filled with the chunk text, Vietnamese meaning, example (the sentence English), suggested topic, and band estimate. Nothing is auto-saved; the user must confirm before saving to the IELTS Chunk Library.
+
 ## Question Bank → Translation Recall pipeline
 
 - `TranslationScript` now carries `sourceType` (`MANUAL` or `SPEAKING_QUESTION`), an optional `sourceQuestionId` foreign key to `IeltsQuestion`, `generatedByAi`, a `version` counter, and a `usedChunkIds` JSON array.
@@ -249,6 +256,32 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
   - bulk approve/archive actions
   - search and filter by status, child focus, speaker role, and scenario category
 - None of these family chunk records are reused by IELTS chunk selection, IELTS review scheduling, or IELTS dashboard metrics.
+
+## Family conversation recall flow
+
+- `/family/conversations/[id]/recall` is the per-conversation recall practice surface.
+- Two new dedicated tables keep family recall data separate from IELTS Translation Recall:
+  - `FamilyConversationRecallLine` — `conversationId`, `orderIndex`, `speaker`, `englishText`, `vietnameseText`, `usedChunks` JSON; unique on `(conversationId, orderIndex)`.
+  - `FamilyConversationRecallAttempt` — `userId`, `conversationId`, `lineId` (nullable, `SET NULL` on line delete), `mode` (`LINE` or `FULL`), `userAnswer`, `score`, `feedbackMarkdown`.
+- Both tables cascade-delete with the owning user / conversation.
+- Create-recall flow (`POST /api/family/conversations/[id]/create-recall`):
+  - approved-user gate; ownership check on the conversation
+  - if recall lines already exist and `regenerate` is `false`, returns the existing script without calling AI
+  - otherwise AI parses the conversation Markdown into strict-JSON lines and the service replaces lines transactionally (`deleteMany` then `createMany`)
+- Compare flow (`POST /api/family/conversations/[id]/recall/compare`):
+  - approved-user gate; ownership check on both the conversation and the line
+  - strict-Markdown AI prompt returning `# Score`, `# Feedback`, `# Meaning Accuracy`, `# Natural Family English`, `# Better Version`, `# Useful Chunks`, `# Original English`
+  - server parses the integer score and the `# Useful Chunks` bullets into structured missing chunks for the client
+  - persists the attempt with the parsed score and full feedback Markdown
+- The recall UI lets the learner save any missing chunk to the Family Chunk Library via the existing `saveFamilyChunkAction` (`status: "SUGGESTED"`, `sourceConversationId` set) — saved chunks NEVER land in the IELTS Chunk Library.
+- Separation guarantees vs. IELTS Translation Recall:
+  - dedicated tables, prompts, services, routes, and UI components
+  - the IELTS `TranslationRecallAttempt` table is never touched
+  - the IELTS Chunk Library is never written to from a family recall flow
+- Privacy / logging:
+  - approved-user only; per-line ownership check prevents cross-user line access
+  - routes log metadata only (`userId`, `conversationId`, `lineId`, status) — never AI token, never family profile body, never user answer text, never AI body
+- AI failure model: returns `code: "AI_TUTOR_UNAVAILABLE"` (`503`). The client surfaces a friendly notice; reveal/practice is not blocked.
 
 ## Family practice architecture
 

@@ -21,6 +21,7 @@ import {
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
 
+import { normalizeAiTextForDisplay } from "@/lib/text-cleanup";
 import type { TranslationScriptRecord } from "@/lib/types";
 
 type SentencePair = { english: string; vietnamese: string };
@@ -82,16 +83,18 @@ export function TranslationScriptForm({
         topic: initialScript.topic,
         bandLevel: initialScript.bandLevel,
       });
-      const englishLines = initialScript.sentences.map((s) => s.englishText);
-      const vietnameseLines = initialScript.sentences.map(
-        (s) => s.vietnameseText,
+      const englishLines = initialScript.sentences.map((s) =>
+        normalizeAiTextForDisplay(s.englishText),
+      );
+      const vietnameseLines = initialScript.sentences.map((s) =>
+        normalizeAiTextForDisplay(s.vietnameseText),
       );
       setEnglishText(englishLines.join("\n"));
       setVietnameseText(vietnameseLines.join("\n"));
       setPairs(
         initialScript.sentences.map((sentence) => ({
-          english: sentence.englishText,
-          vietnamese: sentence.vietnameseText,
+          english: normalizeAiTextForDisplay(sentence.englishText),
+          vietnamese: normalizeAiTextForDisplay(sentence.vietnameseText),
         })),
       );
       setPreviewActive(true);

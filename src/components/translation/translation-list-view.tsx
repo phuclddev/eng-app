@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { TranslationScriptForm } from "@/components/translation/translation-script-form";
+import { normalizeAiTextForDisplay } from "@/lib/text-cleanup";
 import type {
   TranslationScriptRecord,
   TranslationScriptSummary,
@@ -80,7 +81,7 @@ export function TranslationListView({
           {scripts.map((script) => (
             <Col key={script.id} xs={24} md={12} xl={8}>
               <Card
-                title={script.title}
+                title={normalizeAiTextForDisplay(script.title)}
                 extra={
                   <Tag color="cyan">Band {script.bandLevel.toFixed(1)}</Tag>
                 }

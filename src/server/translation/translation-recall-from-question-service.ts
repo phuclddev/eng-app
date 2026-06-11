@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 
 import { AppError, NotFoundError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
+import {
+  extractBoldPhrases,
+  normalizeAiTextForDisplay,
+} from "@/lib/text-cleanup";
 import type {
   IeltsTaskType,
   TranslationRecallFromQuestionResponse,
@@ -168,16 +172,18 @@ function parseAiResponse(input: {
   const record = raw as Record<string, unknown>;
   const title =
     typeof record.title === "string" && record.title.trim().length > 0
-      ? record.title.trim().slice(0, 191)
+      ? normalizeAiTextForDisplay(record.title).slice(0, 191)
       : input.fallbackTitle;
-  const englishAnswer =
+  const rawEnglishAnswer =
     typeof record.englishAnswer === "string"
       ? record.englishAnswer.trim()
       : "";
-  const vietnameseTranslation =
+  const englishAnswer = normalizeAiTextForDisplay(rawEnglishAnswer);
+  const vietnameseTranslation = normalizeAiTextForDisplay(
     typeof record.vietnameseTranslation === "string"
-      ? record.vietnameseTranslation.trim()
-      : "";
+      ? record.vietnameseTranslation
+      : "",
+  );
 
   const sentencesRaw = Array.isArray(record.sentences) ? record.sentences : [];
   const sentences = sentencesRaw
@@ -187,18 +193,24 @@ function parseAiResponse(input: {
     )
     .map((item) => ({
       english:
-        typeof item.english === "string" ? item.english.trim() : "",
+        typeof item.english === "string"
+          ? normalizeAiTextForDisplay(item.english)
+          : "",
       vietnamese:
-        typeof item.vietnamese === "string" ? item.vietnamese.trim() : "",
+        typeof item.vietnamese === "string"
+          ? normalizeAiTextForDisplay(item.vietnamese)
+          : "",
     }))
     .filter((pair) => pair.english.length > 0 && pair.vietnamese.length > 0);
 
-  const usedChunks = Array.isArray(record.usedChunks)
+  const declaredUsedChunks = Array.isArray(record.usedChunks)
     ? record.usedChunks.filter(
         (item): item is string =>
           typeof item === "string" && item.trim().length > 0,
       )
     : [];
+  const boldPhrases = extractBoldPhrases(rawEnglishAnswer);
+  const usedChunks = [...declaredUsedChunks, ...boldPhrases];
 
   if (!englishAnswer) {
     warnings.push("AI response had no englishAnswer text.");

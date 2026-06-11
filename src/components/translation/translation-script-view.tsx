@@ -29,12 +29,14 @@ import {
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 
+import { AiMarkdownMessage } from "@/components/ai/ai-markdown-message";
 import { TranslationScriptForm } from "@/components/translation/translation-script-form";
 
 import {
   TRANSLATION_RECALL_CONFIDENCES,
   TRANSLATION_RECALL_CONFIDENCE_LABELS,
 } from "@/lib/constants";
+import { normalizeAiTextForDisplay } from "@/lib/text-cleanup";
 import type {
   TranslationAiChunkExtractResponse,
   TranslationRecallConfidence,
@@ -43,7 +45,18 @@ import type {
   TranslationSentenceRecord,
 } from "@/lib/types";
 
-type Mode = "REVEAL" | "SPEAKING";
+type Mode = "REVEAL" | "SPEAKING" | "COMPARE";
+
+type CompareState = {
+  status: "IDLE" | "LOADING" | "DONE" | "ERROR";
+  answer: string;
+  score?: number | null;
+  feedback?: string;
+  missingChunks?: Array<{ chunk: string; meaningVi: string | null }>;
+  originalEnglish?: string;
+  attemptId?: string;
+  errorMessage?: string;
+};
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -123,6 +136,9 @@ export function TranslationScriptView({
     [script.usedChunks],
   );
   const [mode, setMode] = useState<Mode>("REVEAL");
+  const [compareState, setCompareState] = useState<
+    Record<string, CompareState>
+  >({});
   const [revealedSentenceIds, setRevealedSentenceIds] = useState<Set<string>>(
     new Set(),
   );
@@ -348,6 +364,98 @@ export function TranslationScriptView({
     }
   };
 
+  const updateCompareState = (
+    sentenceId: string,
+    update: Partial<CompareState>,
+  ) => {
+    setCompareState((current) => {
+      const previous: CompareState = current[sentenceId] ?? {
+        status: "IDLE",
+        answer: "",
+      };
+      return {
+        ...current,
+        [sentenceId]: { ...previous, ...update },
+      };
+    });
+  };
+
+  const runCompare = async (sentenceId: string) => {
+    const current: CompareState = compareState[sentenceId] ?? {
+      status: "IDLE",
+      answer: "",
+    };
+    if (!current.answer || current.answer.trim().length < 2) {
+      message.warning("Type your English answer first.");
+      return;
+    }
+    updateCompareState(sentenceId, {
+      status: "LOADING",
+      errorMessage: undefined,
+    });
+
+    try {
+      const response = await fetch("/api/translation-recall/compare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scriptId: scriptRecord.id,
+          sentenceId,
+          mode: "SENTENCE",
+          userAnswer: current.answer,
+        }),
+      });
+      const data = (await response.json()) as {
+        attempt?: {
+          id: string;
+          score: number | null;
+          feedbackMarkdown: string;
+        };
+        originalEnglish?: string;
+        missingChunks?: Array<{ chunk: string; meaningVi: string | null }>;
+        message?: string;
+      };
+
+      if (!response.ok || !data.attempt) {
+        throw new Error(data.message ?? "Could not compare your answer.");
+      }
+
+      updateCompareState(sentenceId, {
+        status: "DONE",
+        score: data.attempt.score,
+        feedback: data.attempt.feedbackMarkdown,
+        missingChunks: data.missingChunks ?? [],
+        originalEnglish: data.originalEnglish ?? undefined,
+        attemptId: data.attempt.id,
+        errorMessage: undefined,
+      });
+    } catch (error) {
+      updateCompareState(sentenceId, {
+        status: "ERROR",
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : "Could not compare your answer.",
+      });
+    }
+  };
+
+  const startSaveMissingChunk = (
+    sentenceId: string,
+    chunk: { chunk: string; meaningVi: string | null },
+  ) => {
+    const sentenceRow = sentences.find((s) => s.id === sentenceId);
+    setExtractDraft({
+      sentenceId,
+      englishPhrase: chunk.chunk,
+      meaningVi: chunk.meaningVi ?? "",
+      example: sentenceRow?.englishText ?? chunk.chunk,
+      usageContext: "",
+      suggestedTopic: scriptRecord.topic,
+      bandEstimate: scriptRecord.bandLevel,
+    });
+  };
+
   const handleDelete = async () => {
     setDeletePending(true);
     try {
@@ -370,11 +478,148 @@ export function TranslationScriptView({
     }
   };
 
+  const renderCompareBlock = (sentenceId: string, vietnameseText: string) => {
+    const state: CompareState = compareState[sentenceId] ?? {
+      status: "IDLE",
+      answer: "",
+    };
+    const showRevealedOriginal =
+      state.status === "DONE" && revealedSentenceIds.has(sentenceId);
+
+    return (
+      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+        <Alert
+          type="info"
+          showIcon
+          message="Type your own English answer for this Vietnamese sentence, then tap Compare with AI."
+          description={
+            <Typography.Text type="secondary" className="wrap-anywhere">
+              Source: {normalizeAiTextForDisplay(vietnameseText)}
+            </Typography.Text>
+          }
+        />
+        <Input.TextArea
+          autoSize={{ minRows: 2, maxRows: 6 }}
+          placeholder="Your English answer"
+          value={state.answer}
+          onChange={(event) =>
+            updateCompareState(sentenceId, { answer: event.target.value })
+          }
+        />
+        <Space wrap>
+          <Button
+            type="primary"
+            icon={state.status === "LOADING" ? <LoadingOutlined /> : <RobotOutlined />}
+            loading={state.status === "LOADING"}
+            disabled={state.status === "LOADING" || !aiEnabled}
+            onClick={() => void runCompare(sentenceId)}
+          >
+            {state.status === "DONE" ? "Compare again" : "Compare with AI"}
+          </Button>
+          {state.status === "DONE" ? (
+            <Button
+              icon={showRevealedOriginal ? <EyeOutlined /> : <SoundOutlined />}
+              onClick={() => toggleReveal(sentenceId)}
+            >
+              {showRevealedOriginal ? "Hide original" : "Reveal original"}
+            </Button>
+          ) : null}
+          {state.status === "DONE" ? (
+            <Button
+              onClick={() =>
+                updateCompareState(sentenceId, {
+                  status: "IDLE",
+                  answer: "",
+                  score: undefined,
+                  feedback: undefined,
+                  missingChunks: undefined,
+                  originalEnglish: undefined,
+                  attemptId: undefined,
+                  errorMessage: undefined,
+                })
+              }
+            >
+              Try again
+            </Button>
+          ) : null}
+        </Space>
+
+        {state.status === "ERROR" && state.errorMessage ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="AI comparison failed"
+            description={state.errorMessage}
+          />
+        ) : null}
+
+        {state.status === "DONE" && state.feedback ? (
+          <Card size="small" title={
+            <Space wrap>
+              <Typography.Text strong>Feedback</Typography.Text>
+              {typeof state.score === "number" ? (
+                <Tag
+                  color={
+                    state.score >= 80
+                      ? "green"
+                      : state.score >= 60
+                        ? "blue"
+                        : state.score >= 40
+                          ? "gold"
+                          : "red"
+                  }
+                >
+                  Score {state.score}/100
+                </Tag>
+              ) : null}
+            </Space>
+          }>
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <AiMarkdownMessage content={state.feedback} />
+              {state.missingChunks && state.missingChunks.length > 0 ? (
+                <div>
+                  <Typography.Text strong>Save missing chunks</Typography.Text>
+                  <Space wrap style={{ marginTop: 6 }}>
+                    {state.missingChunks.map((chunk) => (
+                      <Button
+                        key={chunk.chunk}
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={() => startSaveMissingChunk(sentenceId, chunk)}
+                      >
+                        {chunk.chunk}
+                      </Button>
+                    ))}
+                  </Space>
+                </div>
+              ) : null}
+              {showRevealedOriginal && state.originalEnglish ? (
+                <Alert
+                  type="success"
+                  showIcon
+                  message="Original English"
+                  description={
+                    <Typography.Paragraph
+                      style={{ margin: 0 }}
+                      className="wrap-anywhere"
+                    >
+                      {normalizeAiTextForDisplay(state.originalEnglish)}
+                    </Typography.Paragraph>
+                  }
+                />
+              ) : null}
+            </Space>
+          </Card>
+        ) : null}
+      </Space>
+    );
+  };
+
   return (
     <Space direction="vertical" size={20} style={{ width: "100%" }}>
       <div>
         <Typography.Title level={2} style={{ marginBottom: 4 }}>
-          {scriptRecord.title}
+          {normalizeAiTextForDisplay(scriptRecord.title)}
         </Typography.Title>
         <Space wrap>
           <Tag color="blue">{scriptRecord.topic}</Tag>
@@ -420,13 +665,16 @@ export function TranslationScriptView({
               options={[
                 { value: "REVEAL", label: "Reveal mode" },
                 { value: "SPEAKING", label: "Speaking mode" },
+                { value: "COMPARE", label: "Compare with AI" },
               ]}
             />
           </Space>
           <Typography.Text type="secondary" className="wrap-anywhere">
             {mode === "REVEAL"
               ? "Vietnamese is shown by default. Hover the English line on desktop, or tap it on mobile, to reveal. Highlight any English phrase to extract a chunk."
-              : "Vietnamese is shown by default. Try saying the English aloud, then reveal it and rate yourself Easy / Medium / Hard."}
+              : mode === "SPEAKING"
+                ? "Vietnamese is shown by default. Try saying the English aloud, then reveal it and rate yourself Easy / Medium / Hard."
+                : "Type your own English answer for each sentence and tap Compare with AI. The score and feedback come back in Vietnamese. The original English stays hidden until you reveal it."}
           </Typography.Text>
           {usedChunks.length > 0 ? (
             <Space wrap>
@@ -443,6 +691,10 @@ export function TranslationScriptView({
 
       {sentences.map((sentence) => {
         const isRevealed = revealedSentenceIds.has(sentence.id);
+        const cleanVietnamese = normalizeAiTextForDisplay(
+          sentence.vietnameseText,
+        );
+        const cleanEnglish = normalizeAiTextForDisplay(sentence.englishText);
         return (
           <Card key={sentence.id} title={`Sentence ${sentence.orderIndex + 1}`}>
             <Space direction="vertical" size={12} style={{ width: "100%" }}>
@@ -452,7 +704,7 @@ export function TranslationScriptView({
                   style={{ margin: 0 }}
                   className="wrap-anywhere"
                 >
-                  {sentence.vietnameseText}
+                  {cleanVietnamese}
                 </Typography.Paragraph>
               </div>
 
@@ -502,8 +754,8 @@ export function TranslationScriptView({
                     style={{ fontSize: 16, lineHeight: 1.5 }}
                   >
                     {isRevealed
-                      ? highlightChunks(sentence.englishText, usedChunks)
-                      : sentence.englishText}
+                      ? highlightChunks(cleanEnglish, usedChunks)
+                      : cleanEnglish}
                   </span>
                 </div>
                 {!isRevealed ? (
@@ -548,6 +800,10 @@ export function TranslationScriptView({
                   ))}
                 </Space>
               ) : null}
+
+              {mode === "COMPARE"
+                ? renderCompareBlock(sentence.id, sentence.vietnameseText)
+                : null}
 
               {mode === "SPEAKING" ? (
                 <Space direction="vertical" size={8} style={{ width: "100%" }}>

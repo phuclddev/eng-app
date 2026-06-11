@@ -444,6 +444,13 @@ export function FamilyConversationsView({
                 >
                   Extract Chunks
                 </Button>
+                <Button className="full-width-mobile">
+                  <Link
+                    href={`/family/conversations/${selectedConversation.id}/recall`}
+                  >
+                    Practice Recall
+                  </Link>
+                </Button>
               </Space>
             ) : null
           }

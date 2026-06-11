@@ -38,6 +38,7 @@ import {
   QUESTION_CHUNK_USAGE_ROLE_LABELS,
   TRANSLATION_FROM_QUESTION_LENGTHS,
 } from "@/lib/constants";
+import { normalizeAiTextForDisplay } from "@/lib/text-cleanup";
 import type {
   AiTutorStructuredFeedbackSection,
   IeltsQuestionRecord,
@@ -829,7 +830,10 @@ export function QuestionBankView({
             ) : null}
 
             {translationResult ? (
-              <Card size="small" title={translationResult.script.title}>
+              <Card
+                size="small"
+                title={normalizeAiTextForDisplay(translationResult.script.title)}
+              >
                 <Space direction="vertical" size={8} style={{ width: "100%" }}>
                   <Space wrap>
                     <Tag color="cyan">

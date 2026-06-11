@@ -102,6 +102,7 @@
 - Translation API: `POST /api/translation/extract-chunk`
 - Translation API: `POST /api/translation/save-chunk`
 - Translation API: `POST /api/translation/review`
+- Translation API: `POST /api/translation-recall/compare`
 - Translation API: `POST /api/translation-recall/from-question`
 - Translation API: `POST /api/translation-recall/scripts`
 - Translation API: `PATCH /api/translation-recall/scripts/[id]`
@@ -186,6 +187,31 @@
   - `warnings[]`
 - The route logs metadata only: `userId`, `speakingQuestionId`, `length`, `targetBand`, `duplicate`, `fallbackUsed`, `usedChunkCount`. It never logs the AI token or the full answer body.
 
+### `POST /api/translation-recall/compare`
+
+- Requires an authenticated and `APPROVED` user.
+- Accepts JSON:
+  - `scriptId`
+  - `sentenceId` — required when `mode` is `SENTENCE`
+  - `mode` one of `SENTENCE` or `PASSAGE`
+  - `userAnswer` (2-4000 chars)
+- Builds a Markdown-only prompt asking the AI to grade the learner's English translation. The prompt emphasizes accepting natural paraphrases over literal word-for-word matching, and explains in Vietnamese.
+- AI response Markdown sections (in this exact order):
+  - `# Score` — integer 0-100
+  - `# Overall Feedback` — Vietnamese summary
+  - `# Meaning Accuracy`
+  - `# Grammar & Naturalness`
+  - `# Missing Chunks` — bullet list of `**chunk text** = nghĩa tiếng Việt`
+  - `# Better Version`
+  - `# Original Answer`
+- Persists a `TranslationRecallAttempt` row (per user) with the parsed score and the raw Markdown.
+- Returns:
+  - `attempt` — the `TranslationRecallAttemptRecord`
+  - `originalEnglish` — the sentence or full passage
+  - `missingChunks[]` — parsed from the `# Missing Chunks` section, ready to feed the existing chunk-save modal
+- AI failures return `503 AI_TUTOR_UNAVAILABLE`; the reader UI keeps the answer text visible so the learner can retry.
+- The route logs metadata only: `userId`, `scriptId`, `sentenceId`, `mode`, `score`, `missingChunkCount`. It never logs the AI token or the full feedback body.
+
 ### `POST /api/translation-recall/scripts`
 
 - Admin-only. Requires `ADMIN` role (matches the existing Translation Recall CSV import policy).
@@ -222,6 +248,8 @@
 - Learner route: `GET /family/chunks`
 - Learner route: `GET /family/practice`
 - Family AI API: `POST /api/family/conversations/generate`
+- Family AI API: `POST /api/family/conversations/[id]/create-recall`
+- Family AI API: `POST /api/family/conversations/[id]/recall/compare`
 - Family AI API: `POST /api/family/chunks/extract`
 - Family AI API: `POST /api/family/scenarios/generate`
 - Family Practice API: `POST /api/family/practice/start`
@@ -469,6 +497,54 @@
   - `targetType`
   - `targetId`
 - Idempotent: returns `{ ok: true }` even if the favorite did not exist.
+
+### `POST /api/family/conversations/[id]/create-recall`
+
+- Requires an authenticated and `APPROVED` user.
+- Path param `id` is the `FamilyConversation` id.
+- Accepts JSON:
+  - `regenerate` optional boolean (default `false`)
+- Loads the owned `FamilyConversation` on the server; non-owners receive `403 FORBIDDEN` (or `404 NOT_FOUND` when the conversation does not exist).
+- If recall lines already exist and `regenerate` is `false`, returns the existing script without calling AI.
+- Otherwise asks AI to parse the conversation Markdown into a strict-JSON list of lines:
+  - `speaker`, `englishText`, `vietnameseText`, `usedChunks[]`
+  - 4–30 lines, narration skipped, speaker labels preserved.
+- Replaces lines transactionally (`deleteMany` then `createMany`) — never appends.
+- Returns:
+  - `script.conversationId`
+  - `script.lines[]` with per-line `attemptCount`
+- AI failure returns `code: "AI_TUTOR_UNAVAILABLE"` with status `503`; no DB write happens on failure.
+- Scoping: lines belong to the conversation owner only — they are never exposed to other users.
+- The route logs metadata only — never the AI token, never the full family profile, never line text.
+
+### `POST /api/family/conversations/[id]/recall/compare`
+
+- Requires an authenticated and `APPROVED` user.
+- Path param `id` is the `FamilyConversation` id.
+- Accepts JSON:
+  - `lineId` — must belong to the conversation
+  - `userAnswer` — 2–4000 characters
+- Verifies both:
+  - the conversation belongs to the current user
+  - the `lineId` belongs to that conversation
+- Calls AI with a strict-Markdown prompt asking for these sections (Vietnamese explanations, accept paraphrases, penalize textbook English):
+  - `# Score`
+  - `# Feedback`
+  - `# Meaning Accuracy`
+  - `# Natural Family English`
+  - `# Better Version`
+  - `# Useful Chunks`
+  - `# Original English`
+- Persists a `FamilyConversationRecallAttempt` row with parsed `score` (nullable when AI omits the heading) and the full `feedbackMarkdown`.
+- Returns:
+  - `attempt` — the persisted attempt
+  - `originalEnglish` — for client reveal
+  - `missingChunks[]` — parsed from `# Useful Chunks` for one-click save into the Family Chunk Library
+- AI failure returns `code: "AI_TUTOR_UNAVAILABLE"` with status `503` and does not block the reveal/practice flow on the client.
+- Distinct from IELTS Translation Recall:
+  - Family attempts never touch `TranslationRecallAttempt`.
+  - Saved chunks go to `FamilyChunk` (status `SUGGESTED`) — never to the IELTS chunk library.
+- The route logs metadata only — never the AI token, never the full family profile, never the raw user answer or AI body.
 
 ### `POST /api/family/chunks/extract`
 

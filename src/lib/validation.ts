@@ -348,6 +348,40 @@ export const translationReviewSchema = z.object({
   confidence: z.enum(TRANSLATION_RECALL_CONFIDENCES),
 });
 
+export const familyConversationRecallCreateSchema = z.object({
+  regenerate: z.boolean().optional().default(false),
+});
+
+export const familyConversationRecallCompareSchema = z.object({
+  lineId: z.string().trim().min(1, "Line is required."),
+  userAnswer: z
+    .string()
+    .trim()
+    .min(2, "Your English answer is required.")
+    .max(4000, "Answer is too long."),
+});
+
+export const translationCompareSchema = z
+  .object({
+    scriptId: z.string().trim().min(1, "Script is required."),
+    sentenceId: z.string().trim().min(1).optional(),
+    userAnswer: z
+      .string()
+      .trim()
+      .min(2, "Your English answer is required.")
+      .max(4000, "Answer is too long."),
+    mode: z.enum(["SENTENCE", "PASSAGE"]),
+  })
+  .superRefine((value, ctx) => {
+    if (value.mode === "SENTENCE" && !value.sentenceId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["sentenceId"],
+        message: "Sentence is required in SENTENCE mode.",
+      });
+    }
+  });
+
 export const translationFromQuestionSchema = z.object({
   speakingQuestionId: z
     .string()
@@ -689,6 +723,13 @@ export type TranslationSaveChunkPayload = z.infer<
   typeof translationSaveChunkSchema
 >;
 export type TranslationReviewPayload = z.infer<typeof translationReviewSchema>;
+export type TranslationComparePayload = z.infer<typeof translationCompareSchema>;
+export type FamilyConversationRecallCreatePayload = z.infer<
+  typeof familyConversationRecallCreateSchema
+>;
+export type FamilyConversationRecallComparePayload = z.infer<
+  typeof familyConversationRecallCompareSchema
+>;
 export type TranslationFromQuestionPayload = z.infer<
   typeof translationFromQuestionSchema
 >;

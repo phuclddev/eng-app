@@ -1,5 +1,7 @@
 import type {
+  FAMILY_CONVERSATION_RECALL_MODES,
   TRANSLATION_FROM_QUESTION_LENGTHS,
+  TRANSLATION_RECALL_ATTEMPT_MODES,
   TRANSLATION_RECALL_CONFIDENCES,
   TRANSLATION_SCRIPT_SOURCE_TYPES,
   IELTS_SKILLS,
@@ -675,6 +677,8 @@ export type FamilyInsightsSummaryResponse = {
 
 export type TranslationRecallConfidence =
   (typeof TRANSLATION_RECALL_CONFIDENCES)[number];
+export type TranslationRecallAttemptMode =
+  (typeof TRANSLATION_RECALL_ATTEMPT_MODES)[number];
 export type TranslationScriptSourceType =
   (typeof TRANSLATION_SCRIPT_SOURCE_TYPES)[number];
 export type TranslationFromQuestionLength =
@@ -795,4 +799,78 @@ export type FamilyScenarioGenerateSummary = {
   skippedDuplicates: number;
   scenarios: FamilyScenarioRecord[];
   warnings: string[];
+};
+
+export type TranslationRecallMissingChunk = {
+  chunk: string;
+  meaningVi: string | null;
+};
+
+export type TranslationRecallAttemptRecord = {
+  id: string;
+  scriptId: string;
+  sentenceId: string | null;
+  mode: TranslationRecallAttemptMode;
+  userAnswer: string;
+  score: number | null;
+  feedbackMarkdown: string;
+  createdAt: string;
+};
+
+export type TranslationRecallCompareResponse = {
+  attempt: TranslationRecallAttemptRecord;
+  originalEnglish: string;
+  missingChunks: TranslationRecallMissingChunk[];
+};
+
+export type FamilyConversationRecallMode =
+  (typeof FAMILY_CONVERSATION_RECALL_MODES)[number];
+
+export type FamilyConversationRecallLineRecord = {
+  id: string;
+  conversationId: string;
+  orderIndex: number;
+  speaker: string;
+  englishText: string;
+  vietnameseText: string;
+  usedChunks: string[];
+  latestAttempt: FamilyConversationRecallAttemptRecord | null;
+  attemptCount: number;
+};
+
+export type FamilyConversationRecallAttemptRecord = {
+  id: string;
+  conversationId: string;
+  lineId: string | null;
+  mode: FamilyConversationRecallMode;
+  userAnswer: string;
+  score: number | null;
+  feedbackMarkdown: string;
+  createdAt: string;
+};
+
+export type FamilyConversationRecallScript = {
+  conversationId: string;
+  title: string;
+  scenarioTitle: string;
+  childFocus: FamilyChildFocus;
+  hasRecall: boolean;
+  lines: FamilyConversationRecallLineRecord[];
+};
+
+export type FamilyConversationRecallMissingChunk = {
+  chunk: string;
+  meaningVi: string | null;
+};
+
+export type FamilyConversationRecallCompareResponse = {
+  attempt: FamilyConversationRecallAttemptRecord;
+  originalEnglish: string;
+  missingChunks: FamilyConversationRecallMissingChunk[];
+};
+
+export type FamilyConversationRecallCreateResponse = {
+  created: number;
+  conversationId: string;
+  recallUrl: string;
 };

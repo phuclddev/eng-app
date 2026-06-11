@@ -161,6 +161,15 @@ Use Node `22+` for local test execution. In this environment, `pnpm test` on the
   - today plan route auth + AI failure handling
   - favorites GET/POST/DELETE auth + validation
   - insights summary route auth + success
+- `src/tests/family-conversation-recall-service.test.ts`
+  - score parsing (extract, clamp, missing-heading null fallback)
+  - missing-chunks bullet parsing (with `(none)` sentinel)
+  - `createFamilyRecallLines`: conversation ownership check, skip-when-existing, AI call + transactional persistence, malformed JSON rejection, AI unavailable mapping, regenerate path, AppError pass-through
+  - `compareFamilyRecallAttempt`: conversation + line ownership check, line-not-in-conversation rejection, attempt persistence with parsed score, null-score fallback when AI omits `# Score`, AI unavailable mapping
+  - `getFamilyRecallScript`: ownership protection, empty-state shape, per-line attempt count joining
+- `src/tests/family-conversation-recall-routes.test.ts`
+  - create-recall route: approved-user enforcement, not-found propagation, success shape with lines
+  - compare route: approved-user enforcement, short-answer rejection, missing-`lineId` rejection, `AI_TUTOR_UNAVAILABLE` mapping, success returns parsed attempt + missing chunks
 
 ## Coverage focus
 

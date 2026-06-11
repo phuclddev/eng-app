@@ -178,6 +178,16 @@ enum TranslationRecallConfidence {
   HARD
 }
 
+enum TranslationRecallAttemptMode {
+  SENTENCE
+  PASSAGE
+}
+
+enum FamilyConversationRecallMode {
+  LINE
+  FULL
+}
+
 enum FamilyScenarioStatus {
   SUGGESTED
   APPROVED
@@ -219,8 +229,10 @@ model User {
   familyRoleplaySessions FamilyRoleplaySession[]
   familyFavorites        FamilyFavorite[]
   familyDailyPlanSnapshots FamilyDailyPlanSnapshot[]
+  familyConversationRecallAttempts FamilyConversationRecallAttempt[]
   translationScripts     TranslationScript[]            @relation("TranslationScriptCreator")
   translationReviews     TranslationSentenceReview[]
+  translationAttempts    TranslationRecallAttempt[]
   practiceAnswers  PracticeAnswer[]
   practiceSessions PracticeSession[]
   reviewSchedules  ReviewSchedule[]
@@ -282,6 +294,8 @@ model FamilyConversation {
   user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   scenario             FamilyScenario   @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
   chunks               FamilyChunk[]
+  recallLines          FamilyConversationRecallLine[]
+  recallAttempts       FamilyConversationRecallAttempt[]
 
   @@index([userId, updatedAt(sort: Desc)])
   @@index([scenarioId, createdAt(sort: Desc)])
@@ -427,6 +441,42 @@ model FamilyRoleplayMessage {
   @@index([sessionId, createdAt])
 }
 
+model FamilyConversationRecallLine {
+  id              String                            @id @default(cuid())
+  conversationId  String
+  orderIndex      Int                               @default(0)
+  speaker         String                            @db.VarChar(48)
+  englishText     String                            @db.Text
+  vietnameseText  String                            @db.Text
+  usedChunks      Json?
+  createdAt       DateTime                          @default(now())
+  updatedAt       DateTime                          @updatedAt
+  conversation    FamilyConversation                @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  attempts        FamilyConversationRecallAttempt[]
+
+  @@unique([conversationId, orderIndex])
+  @@index([conversationId])
+}
+
+model FamilyConversationRecallAttempt {
+  id               String                       @id @default(cuid())
+  userId           String
+  conversationId   String
+  lineId           String?
+  mode             FamilyConversationRecallMode @default(LINE)
+  userAnswer       String                       @db.Text
+  score            Int?
+  feedbackMarkdown String                       @db.LongText
+  createdAt        DateTime                     @default(now())
+  user             User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation     FamilyConversation           @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  line             FamilyConversationRecallLine? @relation(fields: [lineId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, conversationId, createdAt(sort: Desc)])
+  @@index([userId, lineId, createdAt(sort: Desc)])
+}
+
 model FamilyFavorite {
   id         String                   @id @default(cuid())
   userId     String
@@ -473,6 +523,7 @@ model TranslationScript {
   createdBy        User?                 @relation("TranslationScriptCreator", fields: [createdById], references: [id], onDelete: SetNull)
   sourceQuestion   IeltsQuestion?        @relation(fields: [sourceQuestionId], references: [id], onDelete: SetNull)
   sentences        TranslationSentence[]
+  attempts         TranslationRecallAttempt[]
 
   @@index([topic, bandLevel])
   @@index([updatedAt(sort: Desc)])
@@ -492,6 +543,7 @@ model TranslationSentence {
   script         TranslationScript            @relation(fields: [scriptId], references: [id], onDelete: Cascade)
   chunkMappings  TranslationChunkMapping[]
   reviews        TranslationSentenceReview[]
+  attempts       TranslationRecallAttempt[]
 
   @@unique([scriptId, orderIndex])
   @@index([scriptId])
@@ -535,6 +587,25 @@ model TranslationSentenceReview {
 
   @@unique([userId, sentenceId])
   @@index([userId, lastReviewedAt(sort: Desc)])
+}
+
+model TranslationRecallAttempt {
+  id                String                       @id @default(cuid())
+  userId            String
+  scriptId          String
+  sentenceId        String?
+  mode              TranslationRecallAttemptMode @default(SENTENCE)
+  userAnswer        String                       @db.Text
+  score             Int?
+  feedbackMarkdown  String                       @db.LongText
+  createdAt         DateTime                     @default(now())
+  user              User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  script            TranslationScript            @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  sentence          TranslationSentence?         @relation(fields: [sentenceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, scriptId, createdAt(sort: Desc)])
+  @@index([userId, sentenceId, createdAt(sort: Desc)])
 }
 
 model Topic {

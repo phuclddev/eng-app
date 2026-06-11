@@ -298,6 +298,65 @@ Current UI behavior:
   - bulk approve/archive
   - manual add
 
+## Family Conversation Recall
+
+Route: `/family/conversations/[id]/recall`
+
+APIs:
+
+- `POST /api/family/conversations/[id]/create-recall`
+- `POST /api/family/conversations/[id]/recall/compare`
+
+Goal: turn a saved family conversation into a "see Vietnamese → produce English" recall drill, then save useful or missing phrases into the Family Chunk Library.
+
+Distinction from IELTS Translation Recall:
+
+- Family Conversation Recall has its own tables (`FamilyConversationRecallLine`, `FamilyConversationRecallAttempt`) — it never touches `TranslationScript`, `TranslationSentence`, or `TranslationRecallAttempt`.
+- Family Conversation Recall has its own prompts, services, routes, and UI.
+- Saved missing chunks go to `FamilyChunk` (`SUGGESTED`) — never to the IELTS Chunk Library.
+- The IELTS Translation Recall Lab is built around band-targeted study scripts; Family Conversation Recall is built around an already-generated family conversation the user owns.
+
+Recall generation flow:
+
+1. Approved user opens an owned family conversation and clicks `Practice Recall`.
+2. The recall page calls `POST /api/family/conversations/[id]/create-recall`.
+3. If recall lines already exist for that conversation and `regenerate` is `false`, the API returns the existing script — no AI call.
+4. Otherwise the service asks AI to parse the conversation Markdown into a strict-JSON list of lines (4–30) preserving speaker labels, skipping narration. Each line carries `speaker`, `englishText`, `vietnameseText`, and `usedChunks[]`.
+5. Lines are replaced transactionally (`deleteMany` then `createMany`) so regeneration never leaves a partial state.
+6. AI failure returns `AI_TUTOR_UNAVAILABLE` (503). No DB write happens on failure.
+
+Practice + AI comparison flow:
+
+1. Per line, the UI shows Vietnamese plus the speaker label and hides the English by default.
+2. The learner types or speaks the English version.
+3. The learner submits to `POST /api/family/conversations/[id]/recall/compare` with `lineId` + `userAnswer`.
+4. The route checks the conversation belongs to the user AND the line belongs to that conversation.
+5. AI returns a strict-Markdown response with:
+   - `# Score`
+   - `# Feedback`
+   - `# Meaning Accuracy`
+   - `# Natural Family English`
+   - `# Better Version`
+   - `# Useful Chunks`
+   - `# Original English`
+6. The service parses the integer score and the `# Useful Chunks` bullets into structured `missingChunks[]`.
+7. A `FamilyConversationRecallAttempt` is persisted with the parsed score and full feedback Markdown.
+8. The UI shows the score badge, the Markdown feedback, and per-missing-chunk `Save to Chunk Library` buttons. Each save uses the existing `saveFamilyChunkAction` and stores the chunk as `SUGGESTED` with `sourceConversationId` set.
+
+Reveal + retry:
+
+- The learner can ask the page to reveal the original English at any time (no AI required).
+- `Try again` clears the answer and re-shows the input for the same line.
+- AI failure does not block reveal, retry, or manual chunk save.
+
+Privacy rules:
+
+- Approved users only.
+- Per-line ownership check: a user can never compare or list lines from another user's conversation.
+- Routes log metadata only (`userId`, `conversationId`, `lineId`, success/error code). They never log AI token, full family profile, raw user answer, or AI body.
+- Recall data cascade-deletes with the user and with the owning conversation.
+- AI token stays server-side; the client never sees it.
+
 ## Family chunk lifecycle
 
 - New AI-extracted chunks start as `SUGGESTED`.
