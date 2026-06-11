@@ -15,6 +15,8 @@ import type {
   FAMILY_PRACTICE_EXERCISE_TYPES,
   FAMILY_PRACTICE_MODES,
   FAMILY_ROLEPLAY_ROLES,
+  FAMILY_SCENARIO_SOURCES,
+  FAMILY_SCENARIO_STATUSES,
   FAMILY_ROLEPLAY_SENDERS,
   FAMILY_ROLEPLAY_STATUSES,
   FAMILY_SPEAKER_ROLES,
@@ -46,6 +48,10 @@ export type FamilyPracticeMode = (typeof FAMILY_PRACTICE_MODES)[number];
 export type FamilyRoleplayRole = (typeof FAMILY_ROLEPLAY_ROLES)[number];
 export type FamilyRoleplaySender = (typeof FAMILY_ROLEPLAY_SENDERS)[number];
 export type FamilyRoleplayStatus = (typeof FAMILY_ROLEPLAY_STATUSES)[number];
+export type FamilyScenarioStatus =
+  (typeof FAMILY_SCENARIO_STATUSES)[number];
+export type FamilyScenarioSource =
+  (typeof FAMILY_SCENARIO_SOURCES)[number];
 export type FamilySpeakerRole = (typeof FAMILY_SPEAKER_ROLES)[number];
 export type FamilyTargetLevel = (typeof FAMILY_TARGET_LEVELS)[number];
 export type ExerciseType = (typeof EXERCISE_TYPES)[number];
@@ -178,6 +184,9 @@ export type QuestionChunkRecommendation = {
   };
 };
 
+export type IeltsQuestionStatus = "SUGGESTED" | "APPROVED" | "ARCHIVED";
+export type IeltsQuestionSource = "MANUAL" | "CSV_IMPORT" | "AI_GENERATED";
+
 export type IeltsQuestionRecord = {
   id: string;
   skill: IeltsSkill;
@@ -191,8 +200,23 @@ export type IeltsQuestionRecord = {
   notes: string | null;
   mappingCount: number;
   recommendations: QuestionChunkRecommendation[];
+  status: IeltsQuestionStatus;
+  source: IeltsQuestionSource;
+  aiReason: string | null;
+  popularityScore: number;
+  predictedUsefulnessScore: number;
+  generatedBatchId: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type IeltsQuestionGenerationSummary = {
+  batchId: string;
+  created: number;
+  skippedDuplicates: number;
+  parseErrors: string[];
+  warnings: string[];
+  questions: IeltsQuestionRecord[];
 };
 
 export type IeltsQuestionPromptOption = {
@@ -334,6 +358,11 @@ export type FamilyScenarioRecord = {
   description: string;
   difficulty: number;
   isActive: boolean;
+  status: FamilyScenarioStatus;
+  source: FamilyScenarioSource;
+  aiReason: string | null;
+  suggestedGoals: string[];
+  suggestedChunks: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -759,4 +788,11 @@ export type TranslationRecallQuestionStat = {
   questionId: string;
   scriptCount: number;
   latestScriptId: string | null;
+};
+
+export type FamilyScenarioGenerateSummary = {
+  created: number;
+  skippedDuplicates: number;
+  scenarios: FamilyScenarioRecord[];
+  warnings: string[];
 };

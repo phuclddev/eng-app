@@ -20,7 +20,29 @@ export const QUESTION_CHUNK_USAGE_ROLES = [
   "EXAMPLE",
   "OPINION",
   "CLOSING",
+  "OPENING",
+  "REASON",
+  "CONTRAST",
+  "DETAIL",
+  "EMOTION",
+  "STORYTELLING",
+  "SPECULATION",
+  "COMPARISON",
+  "ENDING",
+  "FILLER",
 ] as const;
+export const IELTS_QUESTION_STATUSES = [
+  "SUGGESTED",
+  "APPROVED",
+  "ARCHIVED",
+] as const;
+export const IELTS_QUESTION_SOURCES = [
+  "MANUAL",
+  "CSV_IMPORT",
+  "AI_GENERATED",
+] as const;
+export const IELTS_QUESTION_GENERATE_MAX_COUNT = 60;
+export const IELTS_QUESTION_GENERATE_DEFAULT_COUNT = 20;
 export const AI_TUTOR_PURPOSES = [
   "GENERAL_CHAT",
   "SENTENCE_CORRECTION",
@@ -56,6 +78,14 @@ export const FAMILY_CHUNK_STATUSES = [
   "APPROVED",
   "ARCHIVED",
 ] as const;
+export const FAMILY_SCENARIO_STATUSES = [
+  "SUGGESTED",
+  "APPROVED",
+  "ARCHIVED",
+] as const;
+export const FAMILY_SCENARIO_SOURCES = ["MANUAL", "AI"] as const;
+export const FAMILY_SCENARIO_GENERATE_MAX_COUNT = 30;
+export const FAMILY_SCENARIO_GENERATE_DEFAULT_COUNT = 10;
 export const FAMILY_PRACTICE_MODES = ["DAILY", "REVIEW", "MIXED"] as const;
 export const FAMILY_PRACTICE_EXERCISE_TYPES = [
   "VI_TO_CHUNK",
@@ -164,6 +194,28 @@ export const QUESTION_CHUNK_USAGE_ROLE_LABELS = {
   EXAMPLE: "Example",
   OPINION: "Opinion",
   CLOSING: "Closing",
+  OPENING: "Opening",
+  REASON: "Reason",
+  CONTRAST: "Contrast",
+  DETAIL: "Detail",
+  EMOTION: "Emotion",
+  STORYTELLING: "Storytelling",
+  SPECULATION: "Speculation",
+  COMPARISON: "Comparison",
+  ENDING: "Ending",
+  FILLER: "Filler",
+} as const;
+
+export const IELTS_QUESTION_STATUS_LABELS = {
+  SUGGESTED: "Suggested",
+  APPROVED: "Approved",
+  ARCHIVED: "Archived",
+} as const;
+
+export const IELTS_QUESTION_SOURCE_LABELS = {
+  MANUAL: "Manual",
+  CSV_IMPORT: "CSV import",
+  AI_GENERATED: "AI",
 } as const;
 
 export const AI_TUTOR_PURPOSE_LABELS = {
@@ -210,6 +262,17 @@ export const FAMILY_CHUNK_STATUS_LABELS = {
   SUGGESTED: "Suggested",
   APPROVED: "Approved",
   ARCHIVED: "Archived",
+} as const;
+
+export const FAMILY_SCENARIO_STATUS_LABELS = {
+  SUGGESTED: "Suggested",
+  APPROVED: "Approved",
+  ARCHIVED: "Archived",
+} as const;
+
+export const FAMILY_SCENARIO_SOURCE_LABELS = {
+  MANUAL: "Manual",
+  AI: "AI",
 } as const;
 
 export const FAMILY_PRACTICE_MODE_LABELS = {

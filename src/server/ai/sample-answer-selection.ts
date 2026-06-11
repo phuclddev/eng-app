@@ -23,11 +23,21 @@ const GENERAL_TOPIC_SLUGS = new Set([
 
 const USAGE_ROLE_PRIORITY: Record<QuestionChunkUsageRole, number> = {
   HOOK: 0,
+  OPENING: 0,
   MAIN_IDEA: 1,
+  REASON: 1,
   SUPPORTING_DETAIL: 2,
+  DETAIL: 2,
   EXAMPLE: 3,
+  STORYTELLING: 3,
   OPINION: 4,
-  CLOSING: 5,
+  SPECULATION: 4,
+  COMPARISON: 5,
+  CONTRAST: 5,
+  EMOTION: 6,
+  FILLER: 7,
+  CLOSING: 8,
+  ENDING: 8,
 };
 
 function normalizeText(value?: null | string) {

@@ -55,6 +55,28 @@ enum QuestionChunkUsageRole {
   EXAMPLE
   OPINION
   CLOSING
+  OPENING
+  REASON
+  CONTRAST
+  DETAIL
+  EMOTION
+  STORYTELLING
+  SPECULATION
+  COMPARISON
+  ENDING
+  FILLER
+}
+
+enum IeltsQuestionStatus {
+  SUGGESTED
+  APPROVED
+  ARCHIVED
+}
+
+enum IeltsQuestionSource {
+  MANUAL
+  CSV_IMPORT
+  AI_GENERATED
 }
 
 enum AiConversationPurpose {
@@ -156,6 +178,17 @@ enum TranslationRecallConfidence {
   HARD
 }
 
+enum FamilyScenarioStatus {
+  SUGGESTED
+  APPROVED
+  ARCHIVED
+}
+
+enum FamilyScenarioSource {
+  MANUAL
+  AI
+}
+
 model User {
   id               String            @id @default(cuid())
   name             String?
@@ -209,22 +242,30 @@ model FamilyProfile {
 }
 
 model FamilyScenario {
-  id            String           @id @default(cuid())
-  userId        String
-  title         String           @db.VarChar(191)
-  category      String           @db.VarChar(120)
-  childFocus    FamilyChildFocus @default(BOTH)
-  description   String           @db.Text
-  difficulty    Int              @default(1)
-  isActive      Boolean          @default(true)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversations FamilyConversation[]
-  roleplaySessions FamilyRoleplaySession[]
+  id                  String                @id @default(cuid())
+  userId              String
+  title               String                @db.VarChar(191)
+  normalizedTitle     String                @db.VarChar(191)
+  category            String                @db.VarChar(120)
+  childFocus          FamilyChildFocus      @default(BOTH)
+  description         String                @db.Text
+  difficulty          Int                   @default(1)
+  isActive            Boolean               @default(true)
+  status              FamilyScenarioStatus  @default(APPROVED)
+  source              FamilyScenarioSource  @default(MANUAL)
+  aiReason            String?               @db.Text
+  suggestedGoals      Json?
+  suggestedChunks     Json?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations       FamilyConversation[]
+  roleplaySessions    FamilyRoleplaySession[]
 
   @@unique([userId, title])
+  @@unique([userId, normalizedTitle])
   @@index([userId, isActive])
+  @@index([userId, status, updatedAt(sort: Desc)])
   @@index([userId, category, childFocus])
 }
 
@@ -603,27 +644,37 @@ model ReviewSchedule {
 }
 
 model IeltsQuestion {
-  id               String                     @id @default(cuid())
-  skill            IeltsSkill                @default(SPEAKING)
-  taskType         IeltsTaskType
-  topic            String                     @db.VarChar(120)
-  subTopic         String?                    @db.VarChar(120)
-  prompt           String                     @db.Text
-  supportingPoints Json?
-  difficulty       Int                        @default(1)
-  targetBand       Float                      @default(6)
-  notes            String?                    @db.Text
-  fingerprint      String                     @unique @db.VarChar(191)
-  createdById      String?
-  createdAt        DateTime                   @default(now())
-  updatedAt        DateTime                   @updatedAt
-  createdBy        User?                      @relation("QuestionCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  chunkMappings    IeltsQuestionChunkMapping[]
-  translationScripts TranslationScript[]
+  id                         String                     @id @default(cuid())
+  skill                      IeltsSkill                 @default(SPEAKING)
+  taskType                   IeltsTaskType
+  topic                      String                     @db.VarChar(120)
+  subTopic                   String?                    @db.VarChar(120)
+  prompt                     String                     @db.Text
+  normalizedPrompt           String                     @db.VarChar(191)
+  supportingPoints           Json?
+  difficulty                 Int                        @default(1)
+  targetBand                 Float                      @default(6)
+  notes                      String?                    @db.Text
+  status                     IeltsQuestionStatus        @default(APPROVED)
+  source                     IeltsQuestionSource        @default(MANUAL)
+  aiReason                   String?                    @db.Text
+  popularityScore            Int                        @default(3)
+  predictedUsefulnessScore   Int                        @default(3)
+  generatedBatchId           String?                    @db.VarChar(64)
+  fingerprint                String                     @unique @db.VarChar(191)
+  createdById                String?
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  createdBy                  User?                      @relation("QuestionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  chunkMappings              IeltsQuestionChunkMapping[]
+  translationScripts         TranslationScript[]
 
   @@index([skill, taskType, topic])
   @@index([subTopic])
   @@index([difficulty, targetBand])
+  @@index([status, taskType])
+  @@index([generatedBatchId])
+  @@index([skill, taskType, normalizedPrompt])
 }
 
 model IeltsQuestionChunkMapping {

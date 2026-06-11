@@ -1,5 +1,9 @@
 import { NotFoundError, ValidationError } from "@/lib/errors";
-import type { FamilyScenarioRecord } from "@/lib/types";
+import type {
+  FamilyScenarioRecord,
+  FamilyScenarioSource,
+  FamilyScenarioStatus,
+} from "@/lib/types";
 import type { FamilyScenarioFormValues } from "@/lib/validation";
 import { prisma } from "@/server/prisma";
 
@@ -7,6 +11,7 @@ import { getDefaultFamilyScenariosForUser } from "@/server/family/default-family
 import {
   buildFamilyScenarioCreateData,
   buildFamilyScenarioSeedUpsertArgs,
+  normalizeFamilyScenarioTitle,
 } from "@/server/family/family-scenario-helpers";
 
 type FamilyScenarioModel = {
@@ -18,9 +23,21 @@ type FamilyScenarioModel = {
   description: string;
   difficulty: number;
   isActive: boolean;
+  status: FamilyScenarioStatus;
+  source: FamilyScenarioSource;
+  aiReason: string | null;
+  suggestedGoals: unknown;
+  suggestedChunks: unknown;
   createdAt: Date;
   updatedAt: Date;
 };
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === "string");
+}
 
 function mapFamilyScenario(scenario: FamilyScenarioModel): FamilyScenarioRecord {
   return {
@@ -32,6 +49,11 @@ function mapFamilyScenario(scenario: FamilyScenarioModel): FamilyScenarioRecord 
     description: scenario.description,
     difficulty: scenario.difficulty,
     isActive: scenario.isActive,
+    status: scenario.status,
+    source: scenario.source,
+    aiReason: scenario.aiReason,
+    suggestedGoals: asStringArray(scenario.suggestedGoals),
+    suggestedChunks: asStringArray(scenario.suggestedChunks),
     createdAt: scenario.createdAt.toISOString(),
     updatedAt: scenario.updatedAt.toISOString(),
   };
@@ -42,10 +64,14 @@ async function ensureUniqueFamilyScenarioTitle(input: {
   title: string;
   userId: string;
 }) {
+  const normalizedTitle = normalizeFamilyScenarioTitle(input.title);
   const existing = await prisma.familyScenario.findFirst({
     where: {
       userId: input.userId,
-      title: input.title.trim(),
+      OR: [
+        { title: input.title.trim() },
+        { normalizedTitle },
+      ],
     },
     select: {
       id: true,
@@ -85,12 +111,12 @@ export async function listFamilyScenarios(input: {
 }) {
   await ensureDefaultFamilyScenariosForUser(input);
 
-  const scenarios = await prisma.familyScenario.findMany({
+  const scenarios = (await prisma.familyScenario.findMany({
     where: {
       userId: input.userId,
     },
-    orderBy: [{ isActive: "desc" }, { category: "asc" }, { title: "asc" }],
-  });
+    orderBy: [{ status: "asc" }, { category: "asc" }, { title: "asc" }],
+  })) as FamilyScenarioModel[];
 
   return scenarios.map(mapFamilyScenario);
 }
@@ -101,13 +127,14 @@ export async function listActiveFamilyScenarios(input: {
 }) {
   await ensureDefaultFamilyScenariosForUser(input);
 
-  const scenarios = await prisma.familyScenario.findMany({
+  const scenarios = (await prisma.familyScenario.findMany({
     where: {
       userId: input.userId,
+      status: "APPROVED",
       isActive: true,
     },
     orderBy: [{ category: "asc" }, { title: "asc" }],
-  });
+  })) as FamilyScenarioModel[];
 
   return scenarios.map(mapFamilyScenario);
 }
@@ -120,13 +147,15 @@ export async function getFamilyScenarioByIdForUser(input: {
 }) {
   await ensureDefaultFamilyScenariosForUser(input);
 
-  const scenario = await prisma.familyScenario.findFirst({
+  const scenario = (await prisma.familyScenario.findFirst({
     where: {
       id: input.scenarioId,
       userId: input.userId,
-      ...(input.requireActive ? { isActive: true } : {}),
+      ...(input.requireActive
+        ? { isActive: true, status: "APPROVED" as const }
+        : {}),
     },
-  });
+  })) as FamilyScenarioModel | null;
 
   if (!scenario) {
     throw new NotFoundError("Family scenario was not found.");
@@ -147,6 +176,8 @@ export async function saveFamilyScenario(input: {
     title: input.values.title,
   });
 
+  const normalizedTitle = normalizeFamilyScenarioTitle(input.values.title);
+
   if (input.values.id) {
     await getFamilyScenarioByIdForUser({
       email: input.email,
@@ -154,29 +185,37 @@ export async function saveFamilyScenario(input: {
       userId: input.userId,
     });
 
-    const updated = await prisma.familyScenario.update({
+    const updated = (await prisma.familyScenario.update({
       where: {
         id: input.values.id,
       },
       data: {
         title: input.values.title.trim(),
+        normalizedTitle,
         category: input.values.category.trim(),
         childFocus: input.values.childFocus,
         description: input.values.description.trim(),
         difficulty: input.values.difficulty,
-        isActive: input.values.isActive,
+        isActive:
+          input.values.status === "ARCHIVED" ? false : input.values.isActive,
+        status: input.values.status,
       },
-    });
+    })) as FamilyScenarioModel;
 
     return mapFamilyScenario(updated);
   }
 
-  const created = await prisma.familyScenario.create({
-    data: buildFamilyScenarioCreateData({
-      source: input.values,
-      userId: input.userId,
-    }),
-  });
+  const created = (await prisma.familyScenario.create({
+    data: {
+      ...buildFamilyScenarioCreateData({
+        source: input.values,
+        userId: input.userId,
+      }),
+      status: input.values.status,
+      isActive:
+        input.values.status === "ARCHIVED" ? false : input.values.isActive,
+    },
+  })) as FamilyScenarioModel;
 
   return mapFamilyScenario(created);
 }
@@ -193,16 +232,83 @@ export async function setFamilyScenarioActiveState(input: {
     userId: input.userId,
   });
 
-  const updated = await prisma.familyScenario.update({
+  const updated = (await prisma.familyScenario.update({
     where: {
       id: input.scenarioId,
     },
     data: {
       isActive: input.isActive,
+      status: input.isActive ? "APPROVED" : "ARCHIVED",
+    },
+  })) as FamilyScenarioModel;
+
+  return mapFamilyScenario(updated);
+}
+
+export async function setFamilyScenarioStatus(input: {
+  email?: null | string;
+  scenarioId: string;
+  status: FamilyScenarioStatus;
+  userId: string;
+}) {
+  await getFamilyScenarioByIdForUser({
+    email: input.email,
+    scenarioId: input.scenarioId,
+    userId: input.userId,
+  });
+
+  const updated = (await prisma.familyScenario.update({
+    where: {
+      id: input.scenarioId,
+    },
+    data: {
+      status: input.status,
+      isActive: input.status === "APPROVED",
+    },
+  })) as FamilyScenarioModel;
+
+  return mapFamilyScenario(updated);
+}
+
+export async function bulkSetFamilyScenarioStatus(input: {
+  scenarioIds: string[];
+  status: FamilyScenarioStatus;
+  userId: string;
+}) {
+  const uniqueIds = [...new Set(input.scenarioIds)];
+
+  const owned = await prisma.familyScenario.findMany({
+    where: {
+      id: { in: uniqueIds },
+      userId: input.userId,
+    },
+    select: { id: true },
+  });
+
+  if (owned.length !== uniqueIds.length) {
+    throw new NotFoundError("One or more family scenarios were not found.");
+  }
+
+  await prisma.familyScenario.updateMany({
+    where: {
+      id: { in: uniqueIds },
+      userId: input.userId,
+    },
+    data: {
+      status: input.status,
+      isActive: input.status === "APPROVED",
     },
   });
 
-  return mapFamilyScenario(updated);
+  const updated = (await prisma.familyScenario.findMany({
+    where: {
+      id: { in: uniqueIds },
+      userId: input.userId,
+    },
+    orderBy: [{ status: "asc" }, { title: "asc" }],
+  })) as FamilyScenarioModel[];
+
+  return updated.map(mapFamilyScenario);
 }
 
 export async function getFamilyScenarioSummary(input: {
@@ -211,14 +317,24 @@ export async function getFamilyScenarioSummary(input: {
 }) {
   await ensureDefaultFamilyScenariosForUser(input);
 
-  const totalActiveScenarios = await prisma.familyScenario.count({
-    where: {
-      userId: input.userId,
-      isActive: true,
-    },
-  });
+  const [totalActiveScenarios, totalSuggestedScenarios] = await Promise.all([
+    prisma.familyScenario.count({
+      where: {
+        userId: input.userId,
+        status: "APPROVED",
+        isActive: true,
+      },
+    }),
+    prisma.familyScenario.count({
+      where: {
+        userId: input.userId,
+        status: "SUGGESTED",
+      },
+    }),
+  ]);
 
   return {
     totalActiveScenarios,
+    totalSuggestedScenarios,
   };
 }

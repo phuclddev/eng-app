@@ -1,10 +1,20 @@
 "use client";
 
-import { CloudUploadOutlined, ReadOutlined } from "@ant-design/icons";
+import {
+  CloudUploadOutlined,
+  PlusOutlined,
+  ReadOutlined,
+} from "@ant-design/icons";
 import { Button, Card, Col, Empty, Row, Space, Tag, Typography } from "antd";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
-import type { TranslationScriptSummary } from "@/lib/types";
+import { TranslationScriptForm } from "@/components/translation/translation-script-form";
+import type {
+  TranslationScriptRecord,
+  TranslationScriptSummary,
+} from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 
 export function TranslationListView({
@@ -14,6 +24,13 @@ export function TranslationListView({
   scripts: TranslationScriptSummary[];
   isAdmin: boolean;
 }) {
+  const router = useRouter();
+  const [addOpen, setAddOpen] = useState(false);
+
+  const handleSaved = (script: TranslationScriptRecord) => {
+    router.push(`/translation/${script.id}`);
+  };
+
   return (
     <Space direction="vertical" size={20} style={{ width: "100%" }}>
       <div>
@@ -29,11 +46,19 @@ export function TranslationListView({
       {isAdmin ? (
         <Card>
           <Space wrap>
-            <Button icon={<CloudUploadOutlined />} type="primary">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setAddOpen(true)}
+            >
+              Add Script
+            </Button>
+            <Button icon={<CloudUploadOutlined />}>
               <Link href="/admin/translation">Import translation CSV</Link>
             </Button>
             <Typography.Text type="secondary">
-              CSV headers: title, topic, bandLevel, englishText, vietnameseText.
+              CSV headers: title, topic, bandLevel, englishText, vietnameseText. Manual create lets
+              you paste sentence pairs one line at a time.
             </Typography.Text>
           </Space>
         </Card>
@@ -42,7 +67,11 @@ export function TranslationListView({
       {scripts.length === 0 ? (
         <Card>
           <Empty
-            description="No translation scripts yet. Ask an admin to import a CSV."
+            description={
+              isAdmin
+                ? "No translation scripts yet. Tap Add Script to create one manually, or import a CSV."
+                : "No translation scripts yet. Ask an admin to import a CSV or add a script."
+            }
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
         </Card>
@@ -76,6 +105,13 @@ export function TranslationListView({
           ))}
         </Row>
       )}
+
+      <TranslationScriptForm
+        mode="CREATE"
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSaved={handleSaved}
+      />
     </Space>
   );
 }

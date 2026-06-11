@@ -127,7 +127,18 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
   - `sortOrder`
 - Question import is admin-only and uses CSV validation plus transactional upsert so one bad row cannot partially write the bank.
 - Learners can browse `/questions`, choose a speaking prompt, and inspect the recommended chunks before answering.
-- Admins can browse `/admin/questions`, search the bank, import questions, and maintain the recommended chunk set for each prompt.
+- Admins can browse `/admin/questions`, search the bank, import questions, generate new questions with AI, and maintain the recommended chunk set for each prompt.
+
+### Question lifecycle and AI generation
+
+- `IeltsQuestion.status` is one of `SUGGESTED`, `APPROVED`, or `ARCHIVED`. All learner-facing reads (`/questions`, Speaking Simulator prompt options, Translation Recall script generation) filter to `APPROVED` only.
+- `IeltsQuestion.source` is one of `MANUAL`, `CSV_IMPORT`, or `AI_GENERATED`. Existing rows are backfilled to `MANUAL` / `APPROVED`. New CSV imports are saved as `CSV_IMPORT` / `APPROVED`.
+- `POST /api/admin/questions/generate` is the AI generator. It is admin-only, hard-capped at 60 questions per request, and stores results with `status = SUGGESTED`, `source = AI_GENERATED`, a shared `generatedBatchId`, plus `aiReason`, `popularityScore`, and `predictedUsefulnessScore`.
+- The generator hard-dedupes by `(skill, taskType, normalizedPrompt)` against both the existing bank and the in-batch set.
+- The generator's AI prompt explicitly forbids claiming questions will appear on a real exam and forbids generating Writing Task 1/2.
+- Recommended chunks returned by the AI are mapped against the existing `Chunk` table by normalized text. Unmatched chunks are reported in `warnings` and are not auto-created.
+- The `QuestionChunkUsageRole` enum was extended with `OPENING`, `REASON`, `CONTRAST`, `DETAIL`, `EMOTION`, `STORYTELLING`, `SPECULATION`, `COMPARISON`, `ENDING`, and `FILLER`. The existing values (`HOOK`, `MAIN_IDEA`, `SUPPORTING_DETAIL`, `EXAMPLE`, `OPINION`, `CLOSING`) are preserved for backwards compatibility.
+- `setIeltsQuestionStatus` and `bulkSetIeltsQuestionStatus` (admin-only) drive approval / archive / restore. Existing mapping APIs and CSV import paths are untouched.
 
 ## Learn mode selection
 
@@ -188,6 +199,20 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
   - `ARCHIVED`
 - `FamilyChunk` uses normalized per-user uniqueness so repeated extraction does not create duplicate rows.
 - Default family scenarios are lazily upserted only for the bootstrap owner so Phuc-specific scenarios are not automatically pushed into unrelated users' accounts.
+
+## Family scenario AI generation flow
+
+- `FamilyScenario` gained `status` (`SUGGESTED`/`APPROVED`/`ARCHIVED`), `source` (`MANUAL`/`AI`), `aiReason`, `suggestedGoals`, `suggestedChunks`, and `normalizedTitle` columns in migration `0014_family_scenario_ai_suggestions`. Existing rows are backfilled to `APPROVED` (if `isActive`) or `ARCHIVED`.
+- The Suggested tab on `/family/scenarios` only renders rows with `status: "SUGGESTED"`. Conversation generation and roleplay continue to read `status: "APPROVED"` AND `isActive: true`.
+- `POST /api/family/scenarios/generate`:
+  - requires an active `FamilyProfile`
+  - reads up to 60 existing scenario titles + categories when `includeExistingContext: true`
+  - calls AI with `buildFamilyScenarioGeneratorPrompt` requesting strict JSON with `title`, `category`, `childFocus`, `description`, `difficulty`, `suggestedGoals`, `suggestedChunks`, and Vietnamese `aiReason`
+  - dedupes by `normalizedTitle` against existing scenarios and inside the same batch
+  - persists surviving rows as `status: "SUGGESTED"`, `source: "AI"`, `isActive: false`
+  - logs only metadata — no AI token, no full profile, no full answer
+- `setFamilyScenarioStatus` and `bulkSetFamilyScenarioStatus` keep `isActive` and `status` in sync (`APPROVED` ⇒ `isActive = true`, otherwise `false`). The legacy `setFamilyScenarioActiveState` still works for backwards compatibility.
+- AI generation never updates IELTS tables or Family Practice / Roleplay / Conversation tables.
 
 ## Family conversation generation flow
 

@@ -180,9 +180,45 @@ Current behavior:
 
 - bootstrap owner receives default scenarios based on the Phuc family source profile
 - other users can create their own scenarios manually
-- scenarios can be created, edited, archived, and reactivated
-- scenario listing supports search plus `category` and `childFocus` filters
+- AI-generated scenarios land in the Suggested tab for review
+- scenarios can be created, edited, approved, archived, restored, and bulk-managed
+- scenario listing supports search plus `category`, `childFocus`, `source`, and `status` filters
 - users can only manage their own scenarios
+
+### Scenario status lifecycle
+
+`FamilyScenario.status` follows three states:
+
+- `SUGGESTED` — AI-generated or user-imported drafts awaiting review. `isActive` stays `false` so they are not picked up by conversation generation.
+- `APPROVED` — approved by the user. `isActive` becomes `true` automatically. These are the only scenarios offered to Family Conversation generation and Family Roleplay.
+- `ARCHIVED` — hidden but not deleted. `isActive` is set to `false`. Restoring flips both back to `APPROVED`.
+
+Backwards compatibility: pre-existing scenarios from before this phase were backfilled to `APPROVED` if `isActive = true` and `ARCHIVED` if `isActive = false`. The legacy `setFamilyScenarioActiveState` server action still works and now updates both `isActive` and `status` together.
+
+### AI scenario generation
+
+`POST /api/family/scenarios/generate` accepts:
+
+- `count` (1–30, default 10)
+- `childFocus` optional (`KIWI`, `VIVI`, `BOTH`, `GENERAL`)
+- `category` optional
+- `includeExistingContext` optional boolean, default `true`
+
+Flow:
+
+1. Load the user's active `FamilyProfile` (must exist).
+2. Optionally load up to 60 existing scenario titles + categories so AI can avoid duplicates.
+3. Build a Vietnamese-aware prompt (`family-scenario-generator.ts`) with theme palette + forbidden patterns.
+4. Call the shared server-side AI client and parse strict JSON.
+5. Skip duplicates by normalized title (same user + same `normalizedTitle`).
+6. Persist surviving scenarios as `status: "SUGGESTED"`, `source: "AI"`, `isActive: false`, with `aiReason`, `suggestedGoals[]`, and `suggestedChunks[]` saved as columns.
+7. Return `{ created, skippedDuplicates, scenarios, warnings }`.
+
+### Duplicate handling
+
+- `normalizedTitle` strips whitespace, lowercases, and NFKC-normalizes the title.
+- Insert-side: the `(userId, normalizedTitle)` unique index blocks even race-condition duplicates.
+- Generation-side: the service deduplicates inside the same AI batch and against existing scenarios for the same user.
 
 ## Conversation generation
 

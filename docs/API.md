@@ -9,6 +9,9 @@
 - `GET /api/admin/chunks/export`
 - `POST /api/admin/chunks/import`
 - `POST /api/admin/questions/import`
+- `POST /api/admin/questions/generate`
+- `POST /api/admin/questions/status`
+- `POST /api/admin/questions/bulk-status`
 - `POST /api/admin/translation/import`
 
 ### `POST /api/admin/chunks/import`
@@ -51,6 +54,40 @@
   - `skipped`
   - `errors`
 
+### `POST /api/admin/questions/generate`
+
+- Admin-only. Requires `ADMIN` role.
+- Accepts JSON:
+  - `part` optional one of `PART_1`, `PART_2`, `PART_3`, `MIXED` (default `MIXED`)
+  - `topic` optional topic hint
+  - `count` optional integer between `1` and `60` (default `20`)
+  - `targetBand` optional band 4-9
+  - `includeRecommendedChunks` optional boolean (default `true`)
+- Loads up to 80 existing prompts and (if `includeRecommendedChunks`) up to 60 chunk library lines for context.
+- Calls the AI client with a strict-JSON prompt that asks for ORIGINAL practice questions inspired by common IELTS Speaking topics. The prompt explicitly forbids claiming the output will appear on a real exam and forbids Writing Task 1/2.
+- Persists surviving questions as `status: "SUGGESTED"`, `source: "AI_GENERATED"`, with `aiReason`, `popularityScore`, `predictedUsefulnessScore`, and a shared `generatedBatchId`.
+- Maps recommended chunks against the existing Chunk Library by normalized text. Chunks that do not match are surfaced in `warnings` and not auto-created.
+- Skips duplicates by `(skill, taskType, normalizedPrompt)` against both the existing bank and the same batch.
+- Returns `{ summary: { batchId, created, skippedDuplicates, parseErrors, warnings, questions } }`.
+- The route logs only metadata: actor id, part, count, topic, include-chunks flag, created/skipped/warnings counters.
+
+### `POST /api/admin/questions/status`
+
+- Admin-only.
+- Accepts JSON:
+  - `questionId`
+  - `status` one of `SUGGESTED`, `APPROVED`, `ARCHIVED`
+- Returns the updated `IeltsQuestionRecord`.
+
+### `POST /api/admin/questions/bulk-status`
+
+- Admin-only.
+- Accepts JSON:
+  - `questionIds` array (1 to 200 ids)
+  - `status` one of `SUGGESTED`, `APPROVED`, `ARCHIVED`
+- All ids must exist; returns `404 NOT_FOUND` otherwise.
+- Returns the updated list of `IeltsQuestionRecord`.
+
 ## Question Bank
 
 - Learner route: `GET /questions`
@@ -66,6 +103,9 @@
 - Translation API: `POST /api/translation/save-chunk`
 - Translation API: `POST /api/translation/review`
 - Translation API: `POST /api/translation-recall/from-question`
+- Translation API: `POST /api/translation-recall/scripts`
+- Translation API: `PATCH /api/translation-recall/scripts/[id]`
+- Translation API: `DELETE /api/translation-recall/scripts/[id]`
 
 ### `POST /api/admin/translation/import`
 
@@ -146,6 +186,33 @@
   - `warnings[]`
 - The route logs metadata only: `userId`, `speakingQuestionId`, `length`, `targetBand`, `duplicate`, `fallbackUsed`, `usedChunkCount`. It never logs the AI token or the full answer body.
 
+### `POST /api/translation-recall/scripts`
+
+- Admin-only. Requires `ADMIN` role (matches the existing Translation Recall CSV import policy).
+- Accepts JSON:
+  - `title` (2-191 chars)
+  - `topic` (2-120 chars)
+  - `bandLevel` (4-9, default 6)
+  - `notes` optional (max 2000)
+  - `sentences[]` — each `{ english, vietnamese }`, 1-200 pairs
+- Validates that the `(title, topic)` fingerprint is unique. Returns `409 TRANSLATION_SCRIPT_DUPLICATE` if the same pair already exists (use PATCH on the existing script instead).
+- Saves the script as `sourceType: "MANUAL"`, `generatedByAi: false`, with the supplied `sentences` rows.
+- Returns the full `TranslationScriptRecord`.
+
+### `PATCH /api/translation-recall/scripts/[id]`
+
+- Admin-only.
+- Accepts the same JSON shape as `POST`.
+- Updates the script metadata, deletes existing sentence rows, and re-inserts the supplied `sentences[]`. This matches the existing CSV re-import behavior.
+- If `(title, topic)` changes, the fingerprint is recomputed; a collision with a different script returns `409 TRANSLATION_SCRIPT_DUPLICATE`.
+- Returns the refreshed `TranslationScriptRecord`.
+
+### `DELETE /api/translation-recall/scripts/[id]`
+
+- Admin-only.
+- Deletes the script. Sentences, chunk mappings, and review rows cascade via Prisma `onDelete: Cascade`.
+- Returns `{ ok: true, scriptId }`.
+
 ## Family English
 
 - Learner route: `GET /family`
@@ -156,6 +223,7 @@
 - Learner route: `GET /family/practice`
 - Family AI API: `POST /api/family/conversations/generate`
 - Family AI API: `POST /api/family/chunks/extract`
+- Family AI API: `POST /api/family/scenarios/generate`
 - Family Practice API: `POST /api/family/practice/start`
 - Family Practice API: `POST /api/family/practice/submit`
 - Family Practice API: `POST /api/family/practice/ai-feedback`
@@ -180,6 +248,21 @@
 - Family scenario CRUD currently uses server actions tied to the signed-in user's own data.
 - Family chunk review now uses server actions tied to the signed-in user's own data.
 - Family practice and roleplay APIs are intentionally deferred to later phases.
+
+### `POST /api/family/scenarios/generate`
+
+- Requires an authenticated and `APPROVED` user.
+- Accepts JSON:
+  - `count` optional integer between `1` and `30` (default `10`)
+  - `childFocus` optional one of `KIWI`, `VIVI`, `BOTH`, `GENERAL`
+  - `category` optional category hint
+  - `includeExistingContext` optional boolean (default `true`)
+- Requires an active `FamilyProfile`; returns `404 NOT_FOUND` otherwise.
+- Calls the AI client with a strict-JSON prompt asking for realistic, non-academic family scenarios with `title`, `category`, `childFocus`, `description`, `difficulty`, `suggestedGoals[]`, `suggestedChunks[]`, and Vietnamese `aiReason`.
+- Skips duplicates by `(userId, normalizedTitle)` against existing scenarios and inside the same batch.
+- Persists surviving scenarios as `status: "SUGGESTED"`, `source: "AI"`, `isActive: false`.
+- Returns `{ summary: { created, skippedDuplicates, scenarios, warnings } }`.
+- The route logs metadata only — never the AI token or full prompt/answer body.
 
 ### `POST /api/family/conversations/generate`
 

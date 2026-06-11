@@ -2,6 +2,7 @@
 
 import {
   CheckCircleOutlined,
+  DeleteOutlined,
   EditOutlined,
   EyeOutlined,
   LoadingOutlined,
@@ -19,12 +20,16 @@ import {
   Input,
   InputNumber,
   Modal,
+  Popconfirm,
   Segmented,
   Space,
   Tag,
   Typography,
 } from "antd";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
+
+import { TranslationScriptForm } from "@/components/translation/translation-script-form";
 
 import {
   TRANSLATION_RECALL_CONFIDENCES,
@@ -98,15 +103,21 @@ type ExtractDraft = {
 export function TranslationScriptView({
   script,
   aiEnabled,
+  isAdmin = false,
 }: {
   script: TranslationScriptRecord;
   aiEnabled: boolean;
+  isAdmin?: boolean;
 }) {
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
   const { message } = App.useApp();
+  const router = useRouter();
 
+  const [scriptRecord, setScriptRecord] = useState(script);
   const [sentences, setSentences] = useState(script.sentences);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deletePending, setDeletePending] = useState(false);
   const usedChunks = useMemo(
     () => script.usedChunks ?? [],
     [script.usedChunks],
@@ -337,16 +348,65 @@ export function TranslationScriptView({
     }
   };
 
+  const handleDelete = async () => {
+    setDeletePending(true);
+    try {
+      const response = await fetch(
+        `/api/translation-recall/scripts/${scriptRecord.id}`,
+        { method: "DELETE" },
+      );
+      const data = (await response.json()) as { ok?: boolean; message?: string };
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message ?? "Could not delete the script.");
+      }
+      message.success("Translation script deleted.");
+      router.push("/translation");
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "Could not delete the script.",
+      );
+    } finally {
+      setDeletePending(false);
+    }
+  };
+
   return (
     <Space direction="vertical" size={20} style={{ width: "100%" }}>
       <div>
         <Typography.Title level={2} style={{ marginBottom: 4 }}>
-          {script.title}
+          {scriptRecord.title}
         </Typography.Title>
         <Space wrap>
-          <Tag color="blue">{script.topic}</Tag>
-          <Tag color="cyan">Band {script.bandLevel.toFixed(1)}</Tag>
+          <Tag color="blue">{scriptRecord.topic}</Tag>
+          <Tag color="cyan">Band {scriptRecord.bandLevel.toFixed(1)}</Tag>
           <Tag>{sentences.length} sentences</Tag>
+          {isAdmin ? (
+            <>
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => setEditOpen(true)}
+              >
+                Edit script
+              </Button>
+              <Popconfirm
+                title="Delete this translation script?"
+                description="Sentences and saved chunk mappings on this script will also be removed."
+                onConfirm={() => void handleDelete()}
+                okText="Delete"
+                okButtonProps={{ danger: true, loading: deletePending }}
+              >
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={deletePending}
+                >
+                  Delete
+                </Button>
+              </Popconfirm>
+            </>
+          ) : null}
         </Space>
       </div>
 
@@ -622,6 +682,19 @@ export function TranslationScriptView({
           </Form>
         ) : null}
       </Modal>
+
+      {isAdmin ? (
+        <TranslationScriptForm
+          mode="EDIT"
+          open={editOpen}
+          initialScript={scriptRecord}
+          onClose={() => setEditOpen(false)}
+          onSaved={(saved) => {
+            setScriptRecord(saved);
+            setSentences(saved.sentences);
+          }}
+        />
+      ) : null}
     </Space>
   );
 }

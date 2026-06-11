@@ -314,12 +314,19 @@ export async function importQuestionsFromCsv(options: {
                   topic: input.topic,
                   subTopic: input.subTopic,
                   prompt: input.prompt,
+                  normalizedPrompt: input.prompt
+                    .trim()
+                    .toLowerCase()
+                    .replace(/\s+/g, " ")
+                    .slice(0, 191),
                   supportingPoints: input.supportingPoints,
                   difficulty: input.difficulty,
                   targetBand: input.targetBand,
                   notes: input.notes,
                   fingerprint: input.fingerprint,
                   createdById: input.actorId,
+                  source: "CSV_IMPORT",
+                  status: "APPROVED",
                 },
                 update: {
                   skill: input.skill,

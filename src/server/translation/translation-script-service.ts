@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { validateTranslationCsv } from "@/lib/csv";
-import { NotFoundError, ValidationError } from "@/lib/errors";
+import { AppError, NotFoundError, ValidationError } from "@/lib/errors";
 import type {
   TranslationImportSummary,
   TranslationRecallQuestionStat,
@@ -10,6 +10,10 @@ import type {
   TranslationScriptSummary,
   TranslationSentenceRecord,
 } from "@/lib/types";
+import type {
+  TranslationScriptCreatePayload,
+  TranslationScriptUpdatePayload,
+} from "@/lib/validation";
 import { prisma } from "@/server/prisma";
 
 function coerceUsedChunkIds(value: unknown): string[] {
@@ -365,4 +369,218 @@ export async function importTranslationCsv(
     totalRows: validation.totalRows,
     errors,
   };
+}
+
+async function loadFullScriptRecord(scriptId: string): Promise<TranslationScriptRecord> {
+  const script = await prisma.translationScript.findUnique({
+    where: { id: scriptId },
+    include: {
+      sentences: {
+        orderBy: { orderIndex: "asc" },
+        include: {
+          reviews: false as never,
+          chunkMappings: {
+            select: {
+              id: true,
+              englishPhrase: true,
+              chunkId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!script) {
+    throw new NotFoundError("Translation script was not found.");
+  }
+
+  const usedChunkIds = coerceUsedChunkIds(script.usedChunkIds);
+  const usedChunkRows =
+    usedChunkIds.length === 0
+      ? []
+      : await prisma.chunk.findMany({
+          where: { id: { in: usedChunkIds } },
+          include: { topic: true },
+        });
+  const usedChunks = usedChunkRows.map((chunk) => ({
+    id: chunk.id,
+    chunk: chunk.chunk,
+    meaningVi: chunk.meaningVi,
+    topic: chunk.topic?.name ?? null,
+    bandLevel: chunk.bandLevel,
+  }));
+
+  return {
+    id: script.id,
+    title: script.title,
+    topic: script.topic,
+    bandLevel: script.bandLevel,
+    notes: script.notes,
+    updatedAt: script.updatedAt.toISOString(),
+    sentences: script.sentences.map((sentence) => ({
+      id: sentence.id,
+      orderIndex: sentence.orderIndex,
+      englishText: sentence.englishText,
+      vietnameseText: sentence.vietnameseText,
+      notes: sentence.notes,
+      review: null,
+      savedChunks: sentence.chunkMappings.map((mapping) => ({
+        id: mapping.id,
+        englishPhrase: mapping.englishPhrase,
+        chunkId: mapping.chunkId,
+      })),
+    })) as TranslationSentenceRecord[],
+    sourceType: asSourceType(script.sourceType),
+    sourceQuestionId: script.sourceQuestionId,
+    version: script.version,
+    generatedByAi: script.generatedByAi,
+    usedChunkIds,
+    usedChunks,
+  };
+}
+
+export async function createTranslationScript(input: {
+  adminId: string;
+  payload: TranslationScriptCreatePayload;
+}): Promise<TranslationScriptRecord> {
+  const trimmedTitle = input.payload.title.trim();
+  const trimmedTopic = input.payload.topic.trim();
+  const fingerprint = fingerprintScript({
+    title: trimmedTitle,
+    topic: trimmedTopic,
+  });
+
+  const existing = await prisma.translationScript.findUnique({
+    where: { fingerprint },
+  });
+
+  if (existing) {
+    throw new AppError(
+      `A script with title "${trimmedTitle}" and topic "${trimmedTopic}" already exists.`,
+      409,
+      "TRANSLATION_SCRIPT_DUPLICATE",
+    );
+  }
+
+  if (input.payload.sentences.length === 0) {
+    throw new ValidationError("At least one sentence pair is required.");
+  }
+
+  const scriptId = await prisma.$transaction(async (tx) => {
+    const created = await tx.translationScript.create({
+      data: {
+        title: trimmedTitle,
+        topic: trimmedTopic,
+        bandLevel: input.payload.bandLevel,
+        notes: input.payload.notes ?? null,
+        fingerprint,
+        sourceType: "MANUAL",
+        generatedByAi: false,
+        createdById: input.adminId,
+      },
+    });
+
+    await tx.translationSentence.createMany({
+      data: input.payload.sentences.map((pair, index) => ({
+        scriptId: created.id,
+        orderIndex: index,
+        englishText: pair.english.trim(),
+        vietnameseText: pair.vietnamese.trim(),
+      })),
+    });
+
+    return created.id;
+  });
+
+  return loadFullScriptRecord(scriptId);
+}
+
+export async function updateTranslationScript(input: {
+  adminId: string;
+  scriptId: string;
+  payload: TranslationScriptUpdatePayload;
+}): Promise<TranslationScriptRecord> {
+  const existing = await prisma.translationScript.findUnique({
+    where: { id: input.scriptId },
+    select: { id: true, fingerprint: true },
+  });
+
+  if (!existing) {
+    throw new NotFoundError("Translation script was not found.");
+  }
+
+  const trimmedTitle = input.payload.title.trim();
+  const trimmedTopic = input.payload.topic.trim();
+  const nextFingerprint = fingerprintScript({
+    title: trimmedTitle,
+    topic: trimmedTopic,
+  });
+
+  if (nextFingerprint !== existing.fingerprint) {
+    const conflict = await prisma.translationScript.findUnique({
+      where: { fingerprint: nextFingerprint },
+      select: { id: true },
+    });
+
+    if (conflict && conflict.id !== input.scriptId) {
+      throw new AppError(
+        `A script with title "${trimmedTitle}" and topic "${trimmedTopic}" already exists.`,
+        409,
+        "TRANSLATION_SCRIPT_DUPLICATE",
+      );
+    }
+  }
+
+  if (input.payload.sentences.length === 0) {
+    throw new ValidationError("At least one sentence pair is required.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.translationScript.update({
+      where: { id: input.scriptId },
+      data: {
+        title: trimmedTitle,
+        topic: trimmedTopic,
+        bandLevel: input.payload.bandLevel,
+        notes: input.payload.notes ?? null,
+        fingerprint: nextFingerprint,
+      },
+    });
+
+    await tx.translationSentence.deleteMany({
+      where: { scriptId: input.scriptId },
+    });
+
+    await tx.translationSentence.createMany({
+      data: input.payload.sentences.map((pair, index) => ({
+        scriptId: input.scriptId,
+        orderIndex: index,
+        englishText: pair.english.trim(),
+        vietnameseText: pair.vietnamese.trim(),
+      })),
+    });
+  });
+
+  return loadFullScriptRecord(input.scriptId);
+}
+
+export async function deleteTranslationScript(input: {
+  adminId: string;
+  scriptId: string;
+}): Promise<{ ok: true; scriptId: string }> {
+  const existing = await prisma.translationScript.findUnique({
+    where: { id: input.scriptId },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    throw new NotFoundError("Translation script was not found.");
+  }
+
+  await prisma.translationScript.delete({
+    where: { id: input.scriptId },
+  });
+
+  return { ok: true, scriptId: input.scriptId };
 }

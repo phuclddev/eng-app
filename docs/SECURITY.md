@@ -38,6 +38,14 @@
 - Family chunk extraction validates all AI output before saving so invalid AI JSON does not create partial bad data.
 - Duplicate family chunks are blocked per user by normalized text, including during AI extraction.
 - Family chunks remain isolated from IELTS chunks by design and are not auto-enrolled into IELTS learning flows.
+- IELTS question AI generation is admin-only; non-admins receive `403 FORBIDDEN`. The route logs only metadata (`actorId`, `part`, `count`, `topic`, `includeRecommendedChunks`, `created`, `skippedDuplicates`, warning counters); it never logs the AI bearer token or the full AI response body.
+- AI-generated IELTS questions are persisted as `status: "SUGGESTED"` so they never appear in learner-facing routes, the Speaking Simulator, or Translation Recall script generation until an admin explicitly approves them.
+- `(skill, taskType, normalizedPrompt)` dedupe is enforced server-side against the existing bank and within the same generation batch to prevent duplicate practice content.
+- The IELTS generator prompt explicitly forbids claiming any generated question will appear in a real IELTS exam and forbids producing Writing Task 1/2 prompts.
+- Family scenario AI generation requires an active `FamilyProfile` for the current user. The route logs metadata only (`userId`, count, child focus, category, include-existing flag, created/skipped totals); it never logs the AI token, the full family profile, or the full AI response body.
+- AI-generated scenarios are saved as `status: "SUGGESTED"` with `isActive: false`, so they never automatically appear in conversation generation, roleplay, or daily-coach recommendations until the user explicitly approves them.
+- `FamilyScenario.normalizedTitle` enforces a per-user unique index so race-condition duplicate inserts are blocked at the database level even if the deduper inside the generator misses.
+- Family scenario status transitions go through ownership-checked services; bulk operations verify every supplied id belongs to the caller before applying any update.
 - Family roleplay sessions enforce per-user ownership on read, write, AI, finish, and archive endpoints.
 - Family roleplay AI requests reuse the server-stored `externalConversationId` per session; the client cannot supply a conversation id, so cross-user thread hijacking is not possible.
 - Family roleplay routes log metadata only:

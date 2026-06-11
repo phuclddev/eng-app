@@ -1,4 +1,5 @@
 import { FamilyScenariosView } from "@/components/family/family-scenarios-view";
+import { isAiTutorConfigured } from "@/lib/env";
 import { requireApprovedSession } from "@/server/auth";
 import { listFamilyScenarios } from "@/server/family/family-scenario-service";
 
@@ -9,5 +10,10 @@ export default async function FamilyScenariosPage() {
     email: session.user.email,
   });
 
-  return <FamilyScenariosView scenarios={scenarios} />;
+  return (
+    <FamilyScenariosView
+      scenarios={scenarios}
+      aiEnabled={isAiTutorConfigured()}
+    />
+  );
 }

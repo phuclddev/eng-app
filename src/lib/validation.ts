@@ -17,6 +17,9 @@ import {
   FAMILY_ROLEPLAY_MAX_TURNS,
   FAMILY_ROLEPLAY_MIN_TURNS,
   FAMILY_ROLEPLAY_ROLES,
+  FAMILY_SCENARIO_GENERATE_DEFAULT_COUNT,
+  FAMILY_SCENARIO_GENERATE_MAX_COUNT,
+  FAMILY_SCENARIO_STATUSES,
   FAMILY_SPEAKER_ROLES,
   FAMILY_TARGET_LEVELS,
   TRANSLATION_FROM_QUESTION_LENGTHS,
@@ -88,6 +91,33 @@ export const familyScenarioFormSchema = z.object({
     .max(4000, "Scenario description is too long."),
   difficulty: z.coerce.number().int().min(1).max(5),
   isActive: z.boolean().optional().default(true),
+  status: z.enum(FAMILY_SCENARIO_STATUSES).optional().default("APPROVED"),
+});
+
+export const familyScenarioStatusUpdateSchema = z.object({
+  scenarioId: z.string().trim().min(1, "Scenario is required."),
+  status: z.enum(FAMILY_SCENARIO_STATUSES),
+});
+
+export const familyScenarioBulkStatusUpdateSchema = z.object({
+  scenarioIds: z
+    .array(z.string().trim().min(1, "Scenario is required."))
+    .min(1, "Select at least one scenario.")
+    .max(100, "Too many scenarios selected at once."),
+  status: z.enum(FAMILY_SCENARIO_STATUSES),
+});
+
+export const familyScenarioGenerateSchema = z.object({
+  count: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(FAMILY_SCENARIO_GENERATE_MAX_COUNT)
+    .optional()
+    .default(FAMILY_SCENARIO_GENERATE_DEFAULT_COUNT),
+  childFocus: z.enum(FAMILY_CHUNK_CHILD_FOCUS).optional(),
+  category: z.string().trim().max(120).optional(),
+  includeExistingContext: z.boolean().optional().default(true),
 });
 
 export const familyConversationGenerationSchema = z.object({
@@ -512,6 +542,62 @@ export const questionCsvRowSchema = z.object({
   notes: z.string().trim().optional().default(""),
 });
 
+export const ieltsQuestionGenerateSchema = z.object({
+  part: z
+    .enum([...IELTS_TASK_TYPES, "MIXED"] as ["PART_1", "PART_2", "PART_3", "MIXED"])
+    .optional()
+    .default("MIXED"),
+  topic: z.string().trim().max(120).optional(),
+  count: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(60)
+    .optional()
+    .default(20),
+  targetBand: z.coerce.number().min(4).max(9).optional(),
+  includeRecommendedChunks: z.boolean().optional().default(true),
+});
+
+export const ieltsQuestionStatusUpdateSchema = z.object({
+  questionId: z.string().trim().min(1, "Question is required."),
+  status: z.enum(["SUGGESTED", "APPROVED", "ARCHIVED"]),
+});
+
+export const ieltsQuestionBulkStatusUpdateSchema = z.object({
+  questionIds: z
+    .array(z.string().trim().min(1))
+    .min(1, "Select at least one question.")
+    .max(200, "Too many questions selected at once."),
+  status: z.enum(["SUGGESTED", "APPROVED", "ARCHIVED"]),
+});
+
+const translationScriptSentencePairSchema = z.object({
+  english: z
+    .string()
+    .trim()
+    .min(2, "English sentence is required.")
+    .max(4000, "English sentence is too long."),
+  vietnamese: z
+    .string()
+    .trim()
+    .min(2, "Vietnamese sentence is required.")
+    .max(4000, "Vietnamese sentence is too long."),
+});
+
+export const translationScriptCreateSchema = z.object({
+  title: z.string().trim().min(2, "Title is required.").max(191),
+  topic: z.string().trim().min(2, "Topic is required.").max(120),
+  bandLevel: z.coerce.number().min(4).max(9).default(6),
+  notes: z.string().trim().max(2000).optional().nullable(),
+  sentences: z
+    .array(translationScriptSentencePairSchema)
+    .min(1, "At least one sentence pair is required.")
+    .max(200, "Too many sentence pairs."),
+});
+
+export const translationScriptUpdateSchema = translationScriptCreateSchema;
+
 export type TopicFormInput = z.input<typeof topicFormSchema>;
 export type TopicFormValues = z.infer<typeof topicFormSchema>;
 export type ChunkFormInput = z.input<typeof chunkFormSchema>;
@@ -520,6 +606,15 @@ export type FamilyProfileFormInput = z.input<typeof familyProfileFormSchema>;
 export type FamilyProfileFormValues = z.infer<typeof familyProfileFormSchema>;
 export type FamilyScenarioFormInput = z.input<typeof familyScenarioFormSchema>;
 export type FamilyScenarioFormValues = z.infer<typeof familyScenarioFormSchema>;
+export type FamilyScenarioStatusUpdatePayload = z.infer<
+  typeof familyScenarioStatusUpdateSchema
+>;
+export type FamilyScenarioBulkStatusUpdatePayload = z.infer<
+  typeof familyScenarioBulkStatusUpdateSchema
+>;
+export type FamilyScenarioGeneratePayload = z.infer<
+  typeof familyScenarioGenerateSchema
+>;
 export type FamilyChunkFormInput = z.input<typeof familyChunkFormSchema>;
 export type FamilyChunkFormValues = z.infer<typeof familyChunkFormSchema>;
 export type QuestionChunkMappingsFormInput = z.input<
@@ -596,4 +691,19 @@ export type TranslationSaveChunkPayload = z.infer<
 export type TranslationReviewPayload = z.infer<typeof translationReviewSchema>;
 export type TranslationFromQuestionPayload = z.infer<
   typeof translationFromQuestionSchema
+>;
+export type IeltsQuestionGeneratePayload = z.infer<
+  typeof ieltsQuestionGenerateSchema
+>;
+export type IeltsQuestionStatusUpdatePayload = z.infer<
+  typeof ieltsQuestionStatusUpdateSchema
+>;
+export type IeltsQuestionBulkStatusUpdatePayload = z.infer<
+  typeof ieltsQuestionBulkStatusUpdateSchema
+>;
+export type TranslationScriptCreatePayload = z.infer<
+  typeof translationScriptCreateSchema
+>;
+export type TranslationScriptUpdatePayload = z.infer<
+  typeof translationScriptUpdateSchema
 >;

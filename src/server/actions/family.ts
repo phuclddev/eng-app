@@ -7,12 +7,16 @@ import {
   familyChunkFormSchema,
   familyChunkStatusUpdateSchema,
   familyProfileFormSchema,
+  familyScenarioBulkStatusUpdateSchema,
   familyScenarioFormSchema,
+  familyScenarioStatusUpdateSchema,
   type FamilyChunkBulkStatusUpdatePayload,
   type FamilyChunkFormInput,
   type FamilyChunkStatusUpdatePayload,
   type FamilyProfileFormInput,
+  type FamilyScenarioBulkStatusUpdatePayload,
   type FamilyScenarioFormInput,
+  type FamilyScenarioStatusUpdatePayload,
 } from "@/lib/validation";
 import { requireApprovedSession } from "@/server/auth";
 import {
@@ -23,8 +27,10 @@ import {
 import { deleteFamilyConversationForUser } from "@/server/family/family-conversation-service";
 import { saveFamilyProfile } from "@/server/family/family-profile-service";
 import {
+  bulkSetFamilyScenarioStatus,
   saveFamilyScenario,
   setFamilyScenarioActiveState,
+  setFamilyScenarioStatus,
 } from "@/server/family/family-scenario-service";
 
 function revalidateFamilyRoutes() {
@@ -92,6 +98,79 @@ export async function saveFamilyScenarioAction(input: FamilyScenarioFormInput) {
         error instanceof Error
           ? error.message
           : "Could not save the family scenario.",
+    };
+  }
+}
+
+export async function setFamilyScenarioStatusAction(
+  input: FamilyScenarioStatusUpdatePayload,
+) {
+  try {
+    const session = await requireApprovedSession();
+    const values = familyScenarioStatusUpdateSchema.parse(input);
+
+    const scenario = await setFamilyScenarioStatus({
+      userId: session.user.id,
+      email: session.user.email,
+      scenarioId: values.scenarioId,
+      status: values.status,
+    });
+
+    revalidateFamilyRoutes();
+
+    return {
+      ok: true,
+      scenario,
+      message:
+        values.status === "APPROVED"
+          ? "Scenario approved successfully."
+          : values.status === "ARCHIVED"
+            ? "Scenario archived successfully."
+            : "Scenario moved back to suggested.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not update the family scenario status.",
+    };
+  }
+}
+
+export async function bulkSetFamilyScenarioStatusAction(
+  input: FamilyScenarioBulkStatusUpdatePayload,
+) {
+  try {
+    const session = await requireApprovedSession();
+    const values = familyScenarioBulkStatusUpdateSchema.parse(input);
+
+    const scenarios = await bulkSetFamilyScenarioStatus({
+      userId: session.user.id,
+      scenarioIds: values.scenarioIds,
+      status: values.status,
+    });
+
+    revalidateFamilyRoutes();
+
+    return {
+      ok: true,
+      scenarios,
+      message:
+        values.status === "APPROVED"
+          ? "Selected scenarios approved successfully."
+          : values.status === "ARCHIVED"
+            ? "Selected scenarios archived successfully."
+            : "Selected scenarios moved back to suggested.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not update the selected scenarios.",
     };
   }
 }

@@ -19,6 +19,7 @@ export default async function TranslationScriptPage({
     <TranslationScriptView
       script={script}
       aiEnabled={isAiTutorConfigured()}
+      isAdmin={session.user.role === "ADMIN"}
     />
   );
 }

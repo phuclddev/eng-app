@@ -1,34 +1,55 @@
 "use client";
 
 import {
+  Alert,
   App,
   Button,
   Card,
+  Checkbox,
   Drawer,
   Empty,
   Form,
   Grid,
   Input,
+  InputNumber,
   List,
+  Modal,
+  Popconfirm,
   Select,
   Space,
   Table,
+  Tabs,
   Tag,
   Typography,
 } from "antd";
-import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
+import {
+  CheckOutlined,
+  LoadingOutlined,
+  PlusOutlined,
+  StopOutlined,
+  ThunderboltOutlined,
+  UndoOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { SpeakingSampleAnswerPanel } from "@/components/ai/speaking-sample-answer-panel";
 import {
+  IELTS_QUESTION_GENERATE_DEFAULT_COUNT,
+  IELTS_QUESTION_GENERATE_MAX_COUNT,
+  IELTS_QUESTION_SOURCE_LABELS,
+  IELTS_QUESTION_STATUSES,
+  IELTS_QUESTION_STATUS_LABELS,
   IELTS_TASK_TYPE_LABELS,
   QUESTION_CHUNK_USAGE_ROLES,
   QUESTION_CHUNK_USAGE_ROLE_LABELS,
 } from "@/lib/constants";
 import type {
   ChunkOption,
+  IeltsQuestionGenerationSummary,
   IeltsQuestionRecord,
+  IeltsQuestionStatus,
   QuestionChunkUsageRole,
 } from "@/lib/types";
 import { saveQuestionChunkMappingsAction } from "@/server/actions/admin";
@@ -52,19 +73,171 @@ export function QuestionBankAdmin({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<IeltsQuestionRecord | null>(null);
   const [pending, startTransition] = useTransition();
+  const [statusTab, setStatusTab] = useState<IeltsQuestionStatus>("APPROVED");
+  const [questionRows, setQuestionRows] = useState(questions);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [generateLoading, setGenerateLoading] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generateSummary, setGenerateSummary] =
+    useState<IeltsQuestionGenerationSummary | null>(null);
+  const [generatePart, setGeneratePart] = useState<"PART_1" | "PART_2" | "PART_3" | "MIXED">("MIXED");
+  const [generateTopic, setGenerateTopic] = useState("");
+  const [generateCount, setGenerateCount] = useState(
+    IELTS_QUESTION_GENERATE_DEFAULT_COUNT,
+  );
+  const [generateTargetBand, setGenerateTargetBand] = useState(6.5);
+  const [generateIncludeChunks, setGenerateIncludeChunks] = useState(true);
+  const [selectedSuggestedIds, setSelectedSuggestedIds] = useState<Set<string>>(
+    new Set(),
+  );
 
-  const filteredQuestions = questions.filter((question) => {
+  const counts = {
+    SUGGESTED: questionRows.filter((q) => q.status === "SUGGESTED").length,
+    APPROVED: questionRows.filter((q) => q.status === "APPROVED").length,
+    ARCHIVED: questionRows.filter((q) => q.status === "ARCHIVED").length,
+  } as Record<IeltsQuestionStatus, number>;
+
+  const mergeQuestion = (question: IeltsQuestionRecord) =>
+    [question, ...questionRows.filter((row) => row.id !== question.id)];
+
+  const mergeQuestions = (updates: IeltsQuestionRecord[]) => {
+    const byId = new Map(updates.map((row) => [row.id, row]));
+    return questionRows.map((row) => byId.get(row.id) ?? row);
+  };
+
+  const filteredQuestions = questionRows.filter((question) => {
+    if (question.status !== statusTab) {
+      return false;
+    }
     const query = search.trim().toLowerCase();
-
     if (!query) {
       return true;
     }
-
     return [question.prompt, question.topic, question.subTopic ?? ""]
       .join(" ")
       .toLowerCase()
       .includes(query);
   });
+
+  const updateStatus = async (
+    question: IeltsQuestionRecord,
+    status: IeltsQuestionStatus,
+  ) => {
+    try {
+      const response = await fetch("/api/admin/questions/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questionId: question.id, status }),
+      });
+      const data = (await response.json()) as {
+        question?: IeltsQuestionRecord;
+        message?: string;
+      };
+      if (!response.ok || !data.question) {
+        throw new Error(data.message ?? "Could not update question status.");
+      }
+      setQuestionRows(mergeQuestion(data.question));
+      message.success(`Question moved to ${IELTS_QUESTION_STATUS_LABELS[status]}.`);
+    } catch (error) {
+      message.error(
+        error instanceof Error
+          ? error.message
+          : "Could not update question status.",
+      );
+    }
+  };
+
+  const bulkUpdateStatus = async (status: IeltsQuestionStatus) => {
+    if (selectedSuggestedIds.size === 0) {
+      message.info("Select at least one suggested question first.");
+      return;
+    }
+    try {
+      const response = await fetch("/api/admin/questions/bulk-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          questionIds: [...selectedSuggestedIds],
+          status,
+        }),
+      });
+      const data = (await response.json()) as {
+        questions?: IeltsQuestionRecord[];
+        message?: string;
+      };
+      if (!response.ok || !data.questions) {
+        throw new Error(data.message ?? "Could not update questions.");
+      }
+      setQuestionRows(mergeQuestions(data.questions));
+      setSelectedSuggestedIds(new Set());
+      message.success(
+        `${data.questions.length} questions moved to ${IELTS_QUESTION_STATUS_LABELS[status]}.`,
+      );
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "Could not update questions.",
+      );
+    }
+  };
+
+  const runGenerate = async () => {
+    setGenerateLoading(true);
+    setGenerateError(null);
+    setGenerateSummary(null);
+
+    try {
+      const response = await fetch("/api/admin/questions/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          part: generatePart,
+          topic: generateTopic.trim() || undefined,
+          count: generateCount,
+          targetBand: generateTargetBand,
+          includeRecommendedChunks: generateIncludeChunks,
+        }),
+      });
+      const data = (await response.json()) as {
+        summary?: IeltsQuestionGenerationSummary;
+        message?: string;
+      };
+
+      if (!response.ok || !data.summary) {
+        throw new Error(data.message ?? "Could not generate questions.");
+      }
+
+      setGenerateSummary(data.summary);
+
+      if (data.summary.questions.length > 0) {
+        setQuestionRows((current) => {
+          const ids = new Set(data.summary!.questions.map((q) => q.id));
+          return [
+            ...data.summary!.questions,
+            ...current.filter((row) => !ids.has(row.id)),
+          ];
+        });
+        setStatusTab("SUGGESTED");
+      }
+    } catch (error) {
+      setGenerateError(
+        error instanceof Error ? error.message : "Could not generate questions.",
+      );
+    } finally {
+      setGenerateLoading(false);
+    }
+  };
+
+  const toggleSelectSuggested = (id: string) => {
+    setSelectedSuggestedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const renderImportSummary = (summary: {
     created: number;
@@ -186,7 +359,19 @@ export function QuestionBankAdmin({
               onChange={(event) => setSearch(event.target.value)}
             />
             <Button
+              icon={<ThunderboltOutlined />}
               type="primary"
+              className="full-width-mobile"
+              disabled={!aiTutorEnabled}
+              onClick={() => {
+                setGenerateOpen(true);
+                setGenerateError(null);
+                setGenerateSummary(null);
+              }}
+            >
+              Generate with AI
+            </Button>
+            <Button
               className="full-width-mobile"
               icon={<UploadOutlined />}
               onClick={() => fileInputRef.current?.click()}
@@ -194,6 +379,43 @@ export function QuestionBankAdmin({
               Import question CSV
             </Button>
           </div>
+
+          <Tabs
+            activeKey={statusTab}
+            onChange={(key) => {
+              setStatusTab(key as IeltsQuestionStatus);
+              setSelectedSuggestedIds(new Set());
+            }}
+            items={IELTS_QUESTION_STATUSES.map((status) => ({
+              key: status,
+              label: `${IELTS_QUESTION_STATUS_LABELS[status]} (${counts[status]})`,
+            }))}
+          />
+
+          {statusTab === "SUGGESTED" && selectedSuggestedIds.size > 0 ? (
+            <Space wrap>
+              <Typography.Text strong>
+                {selectedSuggestedIds.size} selected
+              </Typography.Text>
+              <Button
+                type="primary"
+                icon={<CheckOutlined />}
+                onClick={() => void bulkUpdateStatus("APPROVED")}
+              >
+                Bulk approve
+              </Button>
+              <Button
+                danger
+                icon={<StopOutlined />}
+                onClick={() => void bulkUpdateStatus("ARCHIVED")}
+              >
+                Bulk archive
+              </Button>
+              <Button onClick={() => setSelectedSuggestedIds(new Set())}>
+                Clear
+              </Button>
+            </Space>
+          ) : null}
 
           <input
             ref={fileInputRef}
@@ -210,7 +432,12 @@ export function QuestionBankAdmin({
             <List
               className="mobile-card-list"
               dataSource={filteredQuestions}
-              pagination={{ pageSize: 8, align: "center" }}
+              pagination={{
+                defaultPageSize: 8,
+                align: "center",
+                showSizeChanger: true,
+                pageSizeOptions: [8, 10, 20, 50, 100],
+              }}
               renderItem={(record) => (
                 <List.Item>
                   <Card
@@ -219,16 +446,85 @@ export function QuestionBankAdmin({
                   >
                     <Space direction="vertical" size={12} style={{ width: "100%" }}>
                       <Space wrap>
+                        {record.status === "SUGGESTED" ? (
+                          <Checkbox
+                            checked={selectedSuggestedIds.has(record.id)}
+                            onChange={() => toggleSelectSuggested(record.id)}
+                          />
+                        ) : null}
                         <Tag color="blue">{IELTS_TASK_TYPE_LABELS[record.taskType]}</Tag>
                         <Tag>{record.topic}</Tag>
                         {record.subTopic ? <Tag>{record.subTopic}</Tag> : null}
                         <Tag>Band {record.targetBand.toFixed(1)}</Tag>
                         <Tag>Difficulty {record.difficulty}</Tag>
                         <Tag>{record.mappingCount} chunks</Tag>
+                        <Tag
+                          color={
+                            record.status === "APPROVED"
+                              ? "green"
+                              : record.status === "SUGGESTED"
+                                ? "gold"
+                                : "default"
+                          }
+                        >
+                          {IELTS_QUESTION_STATUS_LABELS[record.status]}
+                        </Tag>
+                        <Tag>{IELTS_QUESTION_SOURCE_LABELS[record.source]}</Tag>
+                        {record.source === "AI_GENERATED" ? (
+                          <Tag color="purple">
+                            Pop {record.popularityScore} · Useful{" "}
+                            {record.predictedUsefulnessScore}
+                          </Tag>
+                        ) : null}
                       </Space>
-                      <Button onClick={() => openMappingDrawer(record)}>
-                        Edit mappings
-                      </Button>
+                      {record.aiReason ? (
+                        <Typography.Text
+                          type="secondary"
+                          className="wrap-anywhere"
+                        >
+                          {record.aiReason}
+                        </Typography.Text>
+                      ) : null}
+                      <Space wrap>
+                        <Button onClick={() => openMappingDrawer(record)}>
+                          Edit mappings
+                        </Button>
+                        {record.status === "SUGGESTED" ? (
+                          <>
+                            <Button
+                              type="primary"
+                              icon={<CheckOutlined />}
+                              onClick={() => void updateStatus(record, "APPROVED")}
+                            >
+                              Approve
+                            </Button>
+                            <Popconfirm
+                              title="Archive this suggested question?"
+                              onConfirm={() => void updateStatus(record, "ARCHIVED")}
+                            >
+                              <Button danger icon={<StopOutlined />}>
+                                Archive
+                              </Button>
+                            </Popconfirm>
+                          </>
+                        ) : record.status === "APPROVED" ? (
+                          <Popconfirm
+                            title="Archive this question?"
+                            onConfirm={() => void updateStatus(record, "ARCHIVED")}
+                          >
+                            <Button danger icon={<StopOutlined />}>
+                              Archive
+                            </Button>
+                          </Popconfirm>
+                        ) : (
+                          <Button
+                            icon={<UndoOutlined />}
+                            onClick={() => void updateStatus(record, "APPROVED")}
+                          >
+                            Restore
+                          </Button>
+                        )}
+                      </Space>
                     </Space>
                   </Card>
                 </List.Item>
@@ -238,9 +534,28 @@ export function QuestionBankAdmin({
             <Table
               rowKey="id"
               dataSource={filteredQuestions}
-              pagination={{ pageSize: 8 }}
+              pagination={{
+                defaultPageSize: 8,
+                showSizeChanger: true,
+                pageSizeOptions: [8, 10, 20, 50, 100],
+              }}
               scroll={{ x: 900 }}
               columns={[
+                ...(statusTab === "SUGGESTED"
+                  ? [
+                      {
+                        title: "",
+                        key: "select",
+                        width: 36,
+                        render: (_: unknown, record: IeltsQuestionRecord) => (
+                          <Checkbox
+                            checked={selectedSuggestedIds.has(record.id)}
+                            onChange={() => toggleSelectSuggested(record.id)}
+                          />
+                        ),
+                      },
+                    ]
+                  : []),
                 {
                   title: "Task",
                   render: (_, record) => (
@@ -269,15 +584,78 @@ export function QuestionBankAdmin({
                   render: (_, record) => record.targetBand.toFixed(1),
                 },
                 {
+                  title: "Status",
+                  render: (_, record) => (
+                    <Space direction="vertical" size={4}>
+                      <Tag
+                        color={
+                          record.status === "APPROVED"
+                            ? "green"
+                            : record.status === "SUGGESTED"
+                              ? "gold"
+                              : "default"
+                        }
+                      >
+                        {IELTS_QUESTION_STATUS_LABELS[record.status]}
+                      </Tag>
+                      <Tag>{IELTS_QUESTION_SOURCE_LABELS[record.source]}</Tag>
+                      {record.source === "AI_GENERATED" ? (
+                        <Tag color="purple">
+                          P{record.popularityScore} · U{record.predictedUsefulnessScore}
+                        </Tag>
+                      ) : null}
+                    </Space>
+                  ),
+                },
+                {
                   title: "Mapped chunks",
                   render: (_, record) => record.mappingCount,
                 },
                 {
                   title: "Actions",
                   render: (_, record) => (
-                    <Button size="small" onClick={() => openMappingDrawer(record)}>
-                      Edit mappings
-                    </Button>
+                    <Space wrap>
+                      <Button size="small" onClick={() => openMappingDrawer(record)}>
+                        Edit mappings
+                      </Button>
+                      {record.status === "SUGGESTED" ? (
+                        <>
+                          <Button
+                            size="small"
+                            type="primary"
+                            icon={<CheckOutlined />}
+                            onClick={() => void updateStatus(record, "APPROVED")}
+                          >
+                            Approve
+                          </Button>
+                          <Popconfirm
+                            title="Archive this suggested question?"
+                            onConfirm={() => void updateStatus(record, "ARCHIVED")}
+                          >
+                            <Button size="small" danger icon={<StopOutlined />}>
+                              Archive
+                            </Button>
+                          </Popconfirm>
+                        </>
+                      ) : record.status === "APPROVED" ? (
+                        <Popconfirm
+                          title="Archive this question?"
+                          onConfirm={() => void updateStatus(record, "ARCHIVED")}
+                        >
+                          <Button size="small" danger icon={<StopOutlined />}>
+                            Archive
+                          </Button>
+                        </Popconfirm>
+                      ) : (
+                        <Button
+                          size="small"
+                          icon={<UndoOutlined />}
+                          onClick={() => void updateStatus(record, "APPROVED")}
+                        >
+                          Restore
+                        </Button>
+                      )}
+                    </Space>
                   ),
                 },
               ]}
@@ -407,6 +785,155 @@ export function QuestionBankAdmin({
           </Space>
         ) : null}
       </Drawer>
+
+      <Modal
+        open={generateOpen}
+        title="Generate High-Probability Speaking Questions"
+        onCancel={() => {
+          if (!generateLoading) {
+            setGenerateOpen(false);
+          }
+        }}
+        footer={null}
+        destroyOnHidden
+        width={isMobile ? "100%" : 720}
+      >
+        <Space direction="vertical" size={16} style={{ width: "100%" }}>
+          <Typography.Text type="secondary" className="wrap-anywhere">
+            AI generates original practice questions inspired by common IELTS Speaking topics.
+            These are <strong>practice-focused</strong> and not guaranteed to appear on a real
+            exam. New questions land in the Suggested tab for review.
+          </Typography.Text>
+
+          <Space wrap>
+            <Typography.Text strong>Part</Typography.Text>
+            <Select<"PART_1" | "PART_2" | "PART_3" | "MIXED">
+              value={generatePart}
+              onChange={setGeneratePart}
+              style={{ width: 140 }}
+              options={[
+                { label: "Mixed", value: "MIXED" },
+                { label: "Part 1", value: "PART_1" },
+                { label: "Part 2", value: "PART_2" },
+                { label: "Part 3", value: "PART_3" },
+              ]}
+            />
+            <Typography.Text strong>Count</Typography.Text>
+            <InputNumber
+              min={1}
+              max={IELTS_QUESTION_GENERATE_MAX_COUNT}
+              value={generateCount}
+              onChange={(value) =>
+                setGenerateCount(
+                  typeof value === "number"
+                    ? value
+                    : IELTS_QUESTION_GENERATE_DEFAULT_COUNT,
+                )
+              }
+            />
+            <Typography.Text strong>Target band</Typography.Text>
+            <InputNumber
+              min={4}
+              max={9}
+              step={0.5}
+              value={generateTargetBand}
+              onChange={(value) =>
+                setGenerateTargetBand(typeof value === "number" ? value : 6.5)
+              }
+            />
+          </Space>
+
+          <Space style={{ width: "100%" }}>
+            <Typography.Text strong>Topic hint</Typography.Text>
+            <Input
+              maxLength={120}
+              placeholder="Optional (e.g. Hometown, Technology)"
+              value={generateTopic}
+              onChange={(event) => setGenerateTopic(event.target.value)}
+            />
+          </Space>
+
+          <Checkbox
+            checked={generateIncludeChunks}
+            onChange={(event) =>
+              setGenerateIncludeChunks(event.target.checked)
+            }
+          >
+            Include recommended chunks (mapped against the Chunk Library when possible)
+          </Checkbox>
+
+          <Button
+            type="primary"
+            icon={generateLoading ? <LoadingOutlined /> : <ThunderboltOutlined />}
+            onClick={() => void runGenerate()}
+            loading={generateLoading}
+            disabled={generateLoading || !aiTutorEnabled}
+          >
+            Generate
+          </Button>
+
+          {generateError ? (
+            <Alert type="warning" showIcon message={generateError} />
+          ) : null}
+
+          {generateSummary ? (
+            <Card size="small" title="Generation summary">
+              <Space direction="vertical" size={6} style={{ width: "100%" }}>
+                <Typography.Text>
+                  Created {generateSummary.created} · skipped{" "}
+                  {generateSummary.skippedDuplicates} duplicates
+                </Typography.Text>
+                {generateSummary.warnings.length > 0 ? (
+                  <Alert
+                    type="info"
+                    showIcon
+                    message="Notes"
+                    description={
+                      <ul style={{ paddingLeft: 18, margin: 0 }}>
+                        {generateSummary.warnings.map((warning) => (
+                          <li key={warning}>{warning}</li>
+                        ))}
+                      </ul>
+                    }
+                  />
+                ) : null}
+                {generateSummary.parseErrors.length > 0 ? (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="Some rows were dropped"
+                    description={
+                      <ul style={{ paddingLeft: 18, margin: 0 }}>
+                        {generateSummary.parseErrors.map((errorMessage) => (
+                          <li key={errorMessage}>{errorMessage}</li>
+                        ))}
+                      </ul>
+                    }
+                  />
+                ) : null}
+                <Space wrap>
+                  <Button
+                    type="primary"
+                    onClick={() => {
+                      setStatusTab("SUGGESTED");
+                      setGenerateOpen(false);
+                    }}
+                  >
+                    Review suggestions
+                  </Button>
+                  <Button
+                    icon={<ThunderboltOutlined />}
+                    onClick={() => void runGenerate()}
+                    disabled={generateLoading}
+                  >
+                    Generate more
+                  </Button>
+                </Space>
+              </Space>
+            </Card>
+          ) : null}
+        </Space>
+      </Modal>
     </div>
   );
 }

@@ -35,8 +35,9 @@ export function buildQuestionFingerprint(input: {
   return createHash("sha1").update(key).digest("hex");
 }
 
-async function getQuestionEntities() {
+async function getQuestionEntities(input?: { onlyApproved?: boolean }) {
   return prisma.ieltsQuestion.findMany({
+    where: input?.onlyApproved ? { status: "APPROVED" } : undefined,
     orderBy: [
       { taskType: "asc" },
       { topic: "asc" },
@@ -94,14 +95,34 @@ export function mapQuestionRecord(question: QuestionEntity): IeltsQuestionRecord
     notes: question.notes,
     mappingCount: question.chunkMappings.length,
     recommendations: question.chunkMappings.map(mapQuestionChunkRecommendation),
+    status: question.status,
+    source: question.source,
+    aiReason: question.aiReason,
+    popularityScore: question.popularityScore,
+    predictedUsefulnessScore: question.predictedUsefulnessScore,
+    generatedBatchId: question.generatedBatchId,
     createdAt: question.createdAt.toISOString(),
     updatedAt: question.updatedAt.toISOString(),
   };
 }
 
 export async function getQuestionBank() {
+  const questions = await getQuestionEntities({ onlyApproved: true });
+  return questions.map(mapQuestionRecord);
+}
+
+export async function getAdminQuestionBank() {
   const questions = await getQuestionEntities();
   return questions.map(mapQuestionRecord);
+}
+
+export function normalizeQuestionPrompt(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .slice(0, 191);
 }
 
 export async function getChunkOptionsForQuestionMappings(): Promise<ChunkOption[]> {
@@ -132,6 +153,7 @@ export async function getChunkOptionsForQuestionMappings(): Promise<ChunkOption[
 
 export async function getQuestionPromptOptions(): Promise<IeltsQuestionPromptOption[]> {
   const questions = await prisma.ieltsQuestion.findMany({
+    where: { status: "APPROVED" },
     orderBy: [
       { taskType: "asc" },
       { topic: "asc" },
@@ -159,7 +181,7 @@ export async function getQuestionPromptOptions(): Promise<IeltsQuestionPromptOpt
 
 export async function getAdminQuestionBankSnapshot() {
   const [questions, chunks] = await Promise.all([
-    getQuestionBank(),
+    getAdminQuestionBank(),
     getChunkOptionsForQuestionMappings(),
   ]);
 

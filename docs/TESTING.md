@@ -266,6 +266,19 @@ Use Node `22+` for local test execution. In this environment, `pnpm test` on the
   - missing speakingQuestionId rejection
   - maxChunks above hard cap rejection
   - success response shape
+- `src/tests/question-generator-service.test.ts`
+  - malformed AI JSON → `AI_TUTOR_INVALID_RESPONSE`
+  - upstream failure → `AI_TUTOR_UNAVAILABLE`
+  - `AppError` pass-through
+  - dedupe against existing normalized prompts
+  - chunk mapping to existing Chunk Library entries
+  - part filter respects PART_1 / PART_2 / PART_3
+  - single status transition + bulk status transition (with ownership rejection)
+- `src/tests/question-generator-routes.test.ts`
+  - admin-only enforcement (401 / 403)
+  - count above the hard cap (60) rejected
+  - invalid status values rejected
+  - success response shape
 
 ## Manual Translation Recall from-question verification checklist
 
