@@ -1,0 +1,4 @@
+ALTER TABLE `SpeakingIdea`
+  ADD COLUMN `mindMapSourceType` ENUM('MERMAID', 'PLANTUML_TEXT') NOT NULL DEFAULT 'MERMAID',
+  ADD COLUMN `mindMapSourceText` LONGTEXT NULL,
+  ADD COLUMN `mindMapRenderedTitle` VARCHAR(191) NULL;

@@ -6,6 +6,7 @@ import {
   AimOutlined,
   EyeOutlined,
   FullscreenOutlined,
+  ReadOutlined,
   PartitionOutlined,
   RobotOutlined,
 } from "@ant-design/icons";
@@ -44,11 +45,16 @@ import {
   SPEAKING_IDEA_STATUS_LABELS,
 } from "@/lib/constants";
 import {
+  buildSpeakingIdeaMindMapExportBaseName,
+  getSpeakingIdeaMindMapRecord,
+} from "@/lib/speaking-idea-mindmap-source";
+import {
   buildSpeakingIdeaMindMapScene,
   type SpeakingIdeaMapGraphNode,
   type SpeakingIdeaMapMode,
 } from "@/lib/speaking-idea-map";
 import type { IeltsTaskType, SpeakingIdeaRecord, SpeakingIdeaStatus } from "@/lib/types";
+import { SpeakingIdeaMindMapRenderer } from "@/components/admin/speaking-idea-mind-map-renderer";
 
 type FlowNodeData = SpeakingIdeaMapGraphNode;
 
@@ -295,8 +301,17 @@ export function SpeakingIdeaMapView({
   const [questionPart, setQuestionPart] = useState<IeltsTaskType | "ALL">("ALL");
   const [selectedIdeaId, setSelectedIdeaId] = useState<string | undefined>();
   const [memorizeView, setMemorizeView] = useState(false);
+  const [focusView, setFocusView] = useState<"STUDY" | "CANVAS">("STUDY");
 
   const mode: SpeakingIdeaMapMode = selectedIdeaId ? "FOCUS" : "OVERVIEW";
+  const selectedIdea = useMemo(
+    () => ideas.find((idea) => idea.id === selectedIdeaId) ?? null,
+    [ideas, selectedIdeaId],
+  );
+  const selectedMindMap = useMemo(
+    () => (selectedIdea ? getSpeakingIdeaMindMapRecord(selectedIdea) : null),
+    [selectedIdea],
+  );
 
   const scene = useMemo(
     () =>
@@ -343,6 +358,7 @@ export function SpeakingIdeaMapView({
   const handleNodeAction = (node: FlowNodeData) => {
     if (mode === "OVERVIEW" && node.kind === "idea") {
       setSelectedIdeaId(node.id);
+      setFocusView("STUDY");
       return;
     }
 
@@ -405,6 +421,7 @@ export function SpeakingIdeaMapView({
                 if (value === "OVERVIEW") {
                   setSelectedIdeaId(undefined);
                   setMemorizeView(false);
+                  setFocusView("STUDY");
                 }
               }}
             />
@@ -494,12 +511,29 @@ export function SpeakingIdeaMapView({
           extra={
             mode === "FOCUS" ? (
               <Space wrap>
-                <Typography.Text type="secondary">Memorize View</Typography.Text>
-                <Switch checked={memorizeView} onChange={setMemorizeView} />
+                <Segmented
+                  value={focusView}
+                  options={[
+                    { label: "Study map", value: "STUDY" },
+                    { label: "Canvas view", value: "CANVAS" },
+                  ]}
+                  onChange={(value) => setFocusView(value as "STUDY" | "CANVAS")}
+                />
+                {focusView === "CANVAS" ? (
+                  <>
+                    <Typography.Text type="secondary">Memorize View</Typography.Text>
+                    <Switch checked={memorizeView} onChange={setMemorizeView} />
+                  </>
+                ) : null}
                 <Button onClick={() => setSelectedIdeaId(undefined)}>Back to overview</Button>
                 {scene.selectedIdeaId ? (
                   <Button type="primary">
                     <Link href={`/admin/ideas/${scene.selectedIdeaId}`}>Open idea detail</Link>
+                  </Button>
+                ) : null}
+                {scene.selectedIdeaId ? (
+                  <Button icon={<ReadOutlined />}>
+                    <Link href={`/admin/ideas/${scene.selectedIdeaId}/study-map`}>Study page</Link>
                   </Button>
                 ) : null}
               </Space>
@@ -517,6 +551,23 @@ export function SpeakingIdeaMapView({
               description="Select a core idea from the dropdown or click an idea in overview to open the deep memorization map."
               style={{ marginBlock: 48 }}
             />
+          ) : mode === "FOCUS" && focusView === "STUDY" && selectedIdea && selectedMindMap ? (
+            <SpeakingIdeaMindMapRenderer
+              title={selectedMindMap.renderedTitle || selectedIdea.title}
+              sourceText={selectedMindMap.sourceText}
+              exportBaseName={buildSpeakingIdeaMindMapExportBaseName(selectedIdea)}
+              sourceType={selectedMindMap.sourceType}
+              studyHref={`/admin/ideas/${selectedIdea.id}/study-map`}
+              extraActions={
+                <Button icon={<RobotOutlined />} onClick={() => {
+                  message.info(
+                    "AI improvement preview for making this map more concise is the next safe step and is intentionally not auto-saving yet.",
+                  );
+                }}>
+                  Improve map with AI
+                </Button>
+              }
+            />
           ) : (
             <ReactFlowProvider>
               <SpeakingIdeaMapCanvas
@@ -529,6 +580,7 @@ export function SpeakingIdeaMapView({
                 onBackToOverview={() => {
                   setSelectedIdeaId(undefined);
                   setMemorizeView(false);
+                  setFocusView("STUDY");
                 }}
                 onExpandWithAi={() => {
                   message.info(

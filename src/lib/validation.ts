@@ -28,6 +28,7 @@ import {
   QUESTION_CHUNK_USAGE_ROLES,
   SPEAKING_IDEA_GENERATE_DEFAULT_COUNT,
   SPEAKING_IDEA_GENERATE_MAX_COUNT,
+  SPEAKING_IDEA_MIND_MAP_SOURCE_TYPES,
   SPEAKING_IDEA_STATUSES,
   SPEAKING_IDEA_SUPPORT_TYPES,
   TRANSLATION_FROM_QUESTION_LENGTHS,
@@ -670,6 +671,30 @@ export const speakingIdeaGenerateAnswerSchema = z.object({
   length: z.enum(TRANSLATION_FROM_QUESTION_LENGTHS).optional().default("MEDIUM"),
 });
 
+export const speakingIdeaMindMapSchema = z
+  .object({
+    ideaId: z.string().trim().min(1, "Idea is required."),
+    sourceType: z.enum(SPEAKING_IDEA_MIND_MAP_SOURCE_TYPES).default("MERMAID"),
+    sourceText: z
+      .string()
+      .trim()
+      .min(8, "Mind map source is required.")
+      .max(30000, "Mind map source is too long."),
+    renderedTitle: z.string().trim().max(191).optional().nullable(),
+  })
+  .superRefine((input, context) => {
+    if (
+      input.sourceType === "MERMAID" &&
+      !input.sourceText.trim().toLowerCase().startsWith("mindmap")
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["sourceText"],
+        message: "Mermaid mind map source must start with 'mindmap'.",
+      });
+    }
+  });
+
 export const practiceSubmissionSchema = z.object({
   mode: z.enum(PRACTICE_MODES),
   startedAt: z.string().datetime().optional(),
@@ -887,6 +912,8 @@ export type IdeaQuestionMapCreatePayload = z.infer<typeof ideaQuestionMapCreateS
 export type IdeaQuestionMapUpdatePayload = z.infer<typeof ideaQuestionMapUpdateSchema>;
 export type IdeaQuestionMappingSuggestPayload = z.infer<typeof ideaQuestionMappingSuggestSchema>;
 export type SpeakingIdeaGenerateAnswerPayload = z.infer<typeof speakingIdeaGenerateAnswerSchema>;
+export type SpeakingIdeaMindMapInput = z.input<typeof speakingIdeaMindMapSchema>;
+export type SpeakingIdeaMindMapValues = z.infer<typeof speakingIdeaMindMapSchema>;
 export type QuestionChunkMappingsFormInput = z.input<
   typeof questionChunkMappingsFormSchema
 >;

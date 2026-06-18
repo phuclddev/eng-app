@@ -100,6 +100,14 @@ describe("middleware RBAC", () => {
     expect(speakingIdeasCoverageResponse.headers.get("location")).toBe(
       "http://localhost:3000/signin?callbackUrl=%2Fadmin%2Fideas%2Fcoverage&auto=true",
     );
+
+    const speakingIdeaStudyMapResponse = await middleware(
+      new NextRequest("http://localhost:3000/admin/ideas/idea-1/study-map"),
+    );
+
+    expect(speakingIdeaStudyMapResponse.headers.get("location")).toBe(
+      "http://localhost:3000/signin?callbackUrl=%2Fadmin%2Fideas%2Fidea-1%2Fstudy-map&auto=true",
+    );
   });
 
   it("routes pending and blocked users to the approval gate", async () => {
@@ -165,6 +173,14 @@ describe("middleware RBAC", () => {
     expect(ideaCoverageResponse.headers.get("location")).toBe(
       "http://localhost:3000/dashboard",
     );
+
+    const ideaStudyMapResponse = await middleware(
+      new NextRequest("http://localhost:3000/admin/ideas/idea-1/study-map"),
+    );
+
+    expect(ideaStudyMapResponse.headers.get("location")).toBe(
+      "http://localhost:3000/dashboard",
+    );
   });
 
   it("allows approved admins through protected admin routes", async () => {
@@ -200,6 +216,13 @@ describe("middleware RBAC", () => {
 
     expect(ideaCoverageResponse.headers.get("location")).toBeNull();
     expect(ideaCoverageResponse.headers.get("x-middleware-next")).toBe("1");
+
+    const ideaStudyMapResponse = await middleware(
+      new NextRequest("http://localhost:3000/admin/ideas/idea-1/study-map"),
+    );
+
+    expect(ideaStudyMapResponse.headers.get("location")).toBeNull();
+    expect(ideaStudyMapResponse.headers.get("x-middleware-next")).toBe("1");
   });
 
   it("allows approved users through family routes", async () => {

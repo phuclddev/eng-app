@@ -5,10 +5,14 @@ import type {
   IeltsQuestionStatus,
   SpeakingIdeaCoverageSnapshot,
   SpeakingIdeaGenerationSummary,
+  SpeakingIdeaMindMapRecord,
   SpeakingIdeaQuestionOption,
   SpeakingIdeaRecord,
 } from "@/lib/types";
-import type { SpeakingIdeaFormValues } from "@/lib/validation";
+import type {
+  SpeakingIdeaFormValues,
+  SpeakingIdeaMindMapValues,
+} from "@/lib/validation";
 import { normalizeText } from "@/lib/utils";
 import { prisma } from "@/server/prisma";
 
@@ -76,6 +80,9 @@ function mapSpeakingIdeaRecord(idea: SpeakingIdeaEntity): SpeakingIdeaRecord {
     status: idea.status,
     aiReason: idea.aiReason,
     generatedBatchId: idea.generatedBatchId,
+    mindMapSourceType: idea.mindMapSourceType,
+    mindMapSourceText: idea.mindMapSourceText,
+    mindMapRenderedTitle: idea.mindMapRenderedTitle,
     createdAt: idea.createdAt.toISOString(),
     updatedAt: idea.updatedAt.toISOString(),
     variants: idea.variants.map((variant: SpeakingIdeaEntity["variants"][number]) => ({
@@ -536,6 +543,46 @@ export async function setSpeakingIdeaStatus(input: {
   return {
     id: updated.id,
     status: updated.status,
+  };
+}
+
+export async function saveSpeakingIdeaMindMap(
+  values: SpeakingIdeaMindMapValues,
+): Promise<SpeakingIdeaMindMapRecord> {
+  const existing = await prisma.speakingIdea.findUnique({
+    where: { id: values.ideaId },
+    select: {
+      id: true,
+      updatedAt: true,
+    },
+  });
+
+  if (!existing) {
+    throw new NotFoundError("Speaking idea was not found.");
+  }
+
+  const updated = await prisma.speakingIdea.update({
+    where: { id: values.ideaId },
+    data: {
+      mindMapSourceType: values.sourceType,
+      mindMapSourceText: values.sourceText,
+      mindMapRenderedTitle: values.renderedTitle ?? null,
+    },
+    select: {
+      id: true,
+      mindMapSourceType: true,
+      mindMapSourceText: true,
+      mindMapRenderedTitle: true,
+      updatedAt: true,
+    },
+  });
+
+  return {
+    ideaId: updated.id,
+    sourceType: updated.mindMapSourceType,
+    sourceText: updated.mindMapSourceText ?? "",
+    renderedTitle: updated.mindMapRenderedTitle ?? "",
+    updatedAt: updated.updatedAt.toISOString(),
   };
 }
 

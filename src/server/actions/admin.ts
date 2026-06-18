@@ -7,18 +7,24 @@ import {
   chunkFormSchema,
   questionChunkMappingsFormSchema,
   speakingIdeaFormSchema,
+  speakingIdeaMindMapSchema,
   topicFormSchema,
   userModerationSchema,
   type ChunkFormInput,
   type QuestionChunkMappingsFormInput,
   type SpeakingIdeaFormInput,
+  type SpeakingIdeaMindMapInput,
   type TopicFormInput,
 } from "@/lib/validation";
 import { requireAdminApiSession } from "@/server/auth";
 import { saveTopic, saveChunk, removeChunk } from "@/server/data/chunks";
 import { updateUserModeration } from "@/server/data/admin";
 import { saveQuestionChunkMappings } from "@/server/data/questions";
-import { saveSpeakingIdea, setSpeakingIdeaStatus } from "@/server/data/speaking-ideas";
+import {
+  saveSpeakingIdea,
+  saveSpeakingIdeaMindMap,
+  setSpeakingIdeaStatus,
+} from "@/server/data/speaking-ideas";
 
 const revalidateTargets = [
   "/dashboard",
@@ -202,6 +208,43 @@ export async function setSpeakingIdeaStatusAction(input: {
         error instanceof Error
           ? error.message
           : "Unable to update speaking idea status.",
+    };
+  }
+}
+
+export async function saveSpeakingIdeaMindMapAction(
+  input: SpeakingIdeaMindMapInput,
+) {
+  try {
+    const session = await requireAdminApiSession();
+    const values = speakingIdeaMindMapSchema.parse(input);
+    logger.info(
+      {
+        adminUserId: session.user.id,
+        ideaId: values.ideaId,
+        sourceType: values.sourceType,
+        sourceLength: values.sourceText.length,
+      },
+      "Saving speaking idea mind map source",
+    );
+    const result = await saveSpeakingIdeaMindMap(values);
+    refreshWorkspace();
+    revalidatePath("/admin/ideas/map");
+    revalidatePath(`/admin/ideas/${result.ideaId}`);
+    revalidatePath(`/admin/ideas/${result.ideaId}/study-map`);
+    return {
+      ok: true,
+      result,
+      message: "Mind map source saved successfully.",
+    };
+  } catch (error) {
+    logger.error({ error }, "Failed to save speaking idea mind map source");
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to save speaking idea mind map source.",
     };
   }
 }

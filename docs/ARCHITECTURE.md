@@ -231,12 +231,22 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
   - `generatedAnswersCount` currently reports `0`
   - the UI labels this clearly as a generate-only phase so admins do not mistake it for saved analytics
   - admin can copy or regenerate the answer, but the result is not stored in a database table yet in this phase
-- The admin mind-map route `/admin/ideas/map` now behaves as a memorization-first open canvas rather than a card grid:
-  - `Overview` mode renders only core reusable ideas as large clickable nodes on a free pan/zoom canvas
-  - clicking one idea switches into `Focus` mode for a single deeply expanded idea
-  - `Focus` mode uses a deterministic radial layout with the root idea in the center and compact branches for `Simple version`, `Band upgrade`, `Supporting logic`, `Answer pattern`, `Useful chunks`, `Applicable questions`, and `Sample answers`
-  - `Memorize View` compresses the same idea into a 3-step formula: `Main idea`, `Support`, and `Result`
-  - the renderer intentionally caps leaf counts per branch so the map stays readable and useful for memorization instead of turning into a dense data dump
+- Speaking Idea Map now has two visualization layers:
+  - `/admin/ideas/map` keeps the admin-only overview canvas for browsing reusable ideas and spotting which one to study next
+  - `/admin/ideas/[id]/study-map` is the clean memorization page for one idea at a time
+- Each `SpeakingIdea` now stores optional source-based study-map metadata directly on the idea row:
+  - `mindMapSourceType` with default `MERMAID`
+  - `mindMapSourceText` for the editable diagram source
+  - `mindMapRenderedTitle` for the saved display title
+- Source-based map behavior is intentionally separate from idea CRUD content:
+  - core IELTS reasoning data still lives in `title`, descriptions, variants, supports, patterns, and question mappings
+  - the custom Mermaid source is only a study/rendering layer and does not overwrite those reusable reasoning records
+- The source workflow is:
+  - server-side default Mermaid is generated from idea data when no custom source exists
+  - admins can manually edit the Mermaid source on `/admin/ideas/[id]`
+  - the right-hand preview renders client-side with Mermaid in `securityLevel: strict`
+  - admins can export SVG or PNG and open a distraction-light study page without changing learner-facing IELTS routes
+- The open-canvas map route `/admin/ideas/map` still exists, but `Focus` now defaults to a source-based study preview while the older `Canvas view` remains optional for structural exploration
 
 ### Question lifecycle and AI generation
 

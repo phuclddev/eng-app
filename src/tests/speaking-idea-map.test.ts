@@ -15,6 +15,9 @@ function createIdea(overrides: Partial<SpeakingIdeaRecord>): SpeakingIdeaRecord 
     status: "ACTIVE",
     aiReason: null,
     generatedBatchId: null,
+    mindMapSourceType: "MERMAID",
+    mindMapSourceText: null,
+    mindMapRenderedTitle: null,
     createdAt: new Date("2026-06-16T00:00:00.000Z").toISOString(),
     updatedAt: new Date("2026-06-16T00:00:00.000Z").toISOString(),
     variants: [

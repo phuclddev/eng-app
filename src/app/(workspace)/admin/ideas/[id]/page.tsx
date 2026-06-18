@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { SpeakingIdeaEditor } from "@/components/admin/speaking-idea-editor";
+import { SpeakingIdeaMindMapEditor } from "@/components/admin/speaking-idea-mind-map-editor";
 import { requireAdminSession } from "@/server/auth";
 import {
   getSpeakingIdeaById,
@@ -23,5 +24,10 @@ export default async function SpeakingIdeaDetailPage({
     notFound();
   }
 
-  return <SpeakingIdeaEditor idea={idea} questionOptions={questionOptions} />;
+  return (
+    <div className="stacked-view">
+      <SpeakingIdeaEditor idea={idea} questionOptions={questionOptions} />
+      <SpeakingIdeaMindMapEditor idea={idea} />
+    </div>
+  );
 }

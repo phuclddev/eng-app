@@ -94,6 +94,11 @@ enum SpeakingIdeaSupportType {
   PERSONAL_EXPERIENCE
 }
 
+enum SpeakingIdeaMindMapSourceType {
+  MERMAID
+  PLANTUML_TEXT
+}
+
 enum AiConversationPurpose {
   GENERAL_CHAT
   SENTENCE_CORRECTION
@@ -775,6 +780,9 @@ model SpeakingIdea {
   status          SpeakingIdeaStatus       @default(DRAFT)
   aiReason        String?                  @db.Text
   generatedBatchId String?                 @db.VarChar(64)
+  mindMapSourceType SpeakingIdeaMindMapSourceType @default(MERMAID)
+  mindMapSourceText String?                @db.LongText
+  mindMapRenderedTitle String?             @db.VarChar(191)
   createdAt       DateTime                 @default(now())
   updatedAt       DateTime                 @updatedAt
   variants        SpeakingIdeaVariant[]

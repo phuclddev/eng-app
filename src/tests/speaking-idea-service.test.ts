@@ -35,9 +35,10 @@ vi.mock("@/server/prisma", () => ({
 
 let saveSpeakingIdea: typeof import("@/server/data/speaking-ideas").saveSpeakingIdea;
 let setSpeakingIdeaStatus: typeof import("@/server/data/speaking-ideas").setSpeakingIdeaStatus;
+let saveSpeakingIdeaMindMap: typeof import("@/server/data/speaking-ideas").saveSpeakingIdeaMindMap;
 
 beforeAll(async () => {
-  ({ saveSpeakingIdea, setSpeakingIdeaStatus } = await import(
+  ({ saveSpeakingIdea, setSpeakingIdeaStatus, saveSpeakingIdeaMindMap } = await import(
     "@/server/data/speaking-ideas"
   ));
 });
@@ -364,6 +365,50 @@ describe("speaking idea service", () => {
     expect(result).toEqual({
       id: "idea-1",
       status: "ACTIVE",
+    });
+  });
+
+  it("saves a custom Mermaid mind map source for an idea", async () => {
+    speakingIdeaFindUnique.mockResolvedValue({
+      id: "idea-1",
+      updatedAt: new Date("2026-06-16T10:00:00.000Z"),
+    });
+    speakingIdeaUpdate.mockResolvedValue({
+      id: "idea-1",
+      mindMapSourceType: "MERMAID",
+      mindMapSourceText: "mindmap\n  root((Saving time))",
+      mindMapRenderedTitle: "Saving time",
+      updatedAt: new Date("2026-06-18T08:30:00.000Z"),
+    });
+
+    const result = await saveSpeakingIdeaMindMap({
+      ideaId: "idea-1",
+      sourceType: "MERMAID",
+      sourceText: "mindmap\n  root((Saving time))",
+      renderedTitle: "Saving time",
+    });
+
+    expect(speakingIdeaUpdate).toHaveBeenCalledWith({
+      where: { id: "idea-1" },
+      data: {
+        mindMapSourceType: "MERMAID",
+        mindMapSourceText: "mindmap\n  root((Saving time))",
+        mindMapRenderedTitle: "Saving time",
+      },
+      select: {
+        id: true,
+        mindMapSourceType: true,
+        mindMapSourceText: true,
+        mindMapRenderedTitle: true,
+        updatedAt: true,
+      },
+    });
+    expect(result).toEqual({
+      ideaId: "idea-1",
+      sourceType: "MERMAID",
+      sourceText: "mindmap\n  root((Saving time))",
+      renderedTitle: "Saving time",
+      updatedAt: "2026-06-18T08:30:00.000Z",
     });
   });
 });

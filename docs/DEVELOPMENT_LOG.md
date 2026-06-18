@@ -292,6 +292,29 @@
   - reset layout
   - back to overview
 - Added scene-transformation tests for overview filtering, focus branching, memorize view generation, and leaf limiting so the map stays testable without relying only on browser assertions.
+- Added a source-based `Speaking Idea` study-map layer using Mermaid instead of relying only on the canvas layout.
+- Added three nullable source fields directly on `SpeakingIdea`:
+  - `mindMapSourceType`
+  - `mindMapSourceText`
+  - `mindMapRenderedTitle`
+- Added server-side Mermaid source generation from existing idea data:
+  - title
+  - variants
+  - supports
+  - answer patterns
+  - linked questions
+  - short sample-answer lines
+- Added a `Mind Map Editor` on `/admin/ideas/[id]` with:
+  - manual source editing
+  - save
+  - reset from idea data
+  - format source
+  - copy source
+  - live preview
+  - SVG / PNG export
+- Added a clean study route at `/admin/ideas/[id]/study-map` for memorization and printing.
+- Updated `/admin/ideas/map` so focus mode now defaults to the source-based study preview, while the older `Canvas view` remains optional.
+- Added helper/service/middleware coverage for Mermaid source generation, source validation, source saving, and admin-only study-map access.
   - `# Reusable Pattern`
 - Added fallback normalization so if the AI returns plain text instead of the expected sectioned Markdown, the server wraps it into the required headings instead of breaking the admin flow.
 - Phase 5 is intentionally generate-only for now: answers are returned to the UI for copy/review/regeneration, but are not yet persisted in a new DB table.

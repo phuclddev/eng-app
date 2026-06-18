@@ -27,6 +27,7 @@ import type {
   EXERCISE_TYPES,
   SPEAKING_IDEA_STATUSES,
   SPEAKING_IDEA_SUPPORT_TYPES,
+  SPEAKING_IDEA_MIND_MAP_SOURCE_TYPES,
   PRACTICE_MODES,
   USER_ROLES,
   USER_STATUSES,
@@ -203,6 +204,8 @@ export type IeltsQuestionStatus = "SUGGESTED" | "APPROVED" | "ARCHIVED";
 export type IeltsQuestionSource = "MANUAL" | "CSV_IMPORT" | "AI_GENERATED";
 export type SpeakingIdeaStatus = (typeof SPEAKING_IDEA_STATUSES)[number];
 export type SpeakingIdeaSupportType = (typeof SPEAKING_IDEA_SUPPORT_TYPES)[number];
+export type SpeakingIdeaMindMapSourceType =
+  (typeof SPEAKING_IDEA_MIND_MAP_SOURCE_TYPES)[number];
 
 export type IeltsQuestionRecord = {
   id: string;
@@ -319,12 +322,23 @@ export type SpeakingIdeaRecord = {
   status: SpeakingIdeaStatus;
   aiReason: string | null;
   generatedBatchId: string | null;
+  mindMapSourceType: SpeakingIdeaMindMapSourceType;
+  mindMapSourceText: string | null;
+  mindMapRenderedTitle: string | null;
   createdAt: string;
   updatedAt: string;
   variants: SpeakingIdeaVariantRecord[];
   supports: SpeakingIdeaSupportRecord[];
   patterns: SpeakingIdeaPatternRecord[];
   questionMaps: SpeakingIdeaQuestionMapRecord[];
+};
+
+export type SpeakingIdeaMindMapRecord = {
+  ideaId: string;
+  sourceType: SpeakingIdeaMindMapSourceType;
+  sourceText: string;
+  renderedTitle: string;
+  updatedAt: string | null;
 };
 
 export type SpeakingIdeaGenerationSummary = {

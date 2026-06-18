@@ -248,6 +248,11 @@ export function SpeakingIdeaEditor({
           <Button>
             <Link href="/admin/ideas">Back to ideas</Link>
           </Button>
+          {idea ? (
+            <Button>
+              <Link href={`/admin/ideas/${idea.id}/study-map`}>Open study map</Link>
+            </Button>
+          ) : null}
           <Button type="primary" loading={pending} onClick={() => void save()}>
             {idea ? "Save changes" : "Create idea"}
           </Button>

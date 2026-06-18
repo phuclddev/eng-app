@@ -19,6 +19,7 @@
 - `GET /admin/ideas`
 - `GET /admin/ideas/new`
 - `GET /admin/ideas/[id]`
+- `GET /admin/ideas/[id]/study-map`
 - `GET /admin/ideas/map`
 - `POST /api/admin/ideas/generate`
 - `POST /api/admin/ideas/generate-answer`
@@ -28,6 +29,7 @@
 - `POST /api/admin/ideas/suggest-question-mapping`
 - Server action: `saveSpeakingIdeaAction`
 - Server action: `setSpeakingIdeaStatusAction`
+- Server action: `saveSpeakingIdeaMindMapAction`
 
 ### Speaking Idea Map admin action contract
 
@@ -70,6 +72,20 @@
   - `ideaId`
   - `status` one of `DRAFT`, `ACTIVE`, `ARCHIVED`
 - Returns the updated `SpeakingIdeaRecord`.
+
+### Speaking Idea Map source action
+
+- `saveSpeakingIdeaMindMapAction` is admin-only and persists the study-map source layer for one idea.
+- Accepts:
+  - `ideaId`
+  - `sourceType` currently `MERMAID`
+  - `sourceText`
+  - `renderedTitle` optional
+- Validation rules:
+  - `sourceText` is required
+  - Mermaid source must start with `mindmap`
+- This action does not change the core idea reasoning records (`variants`, `supports`, `patterns`, `questionMaps`); it only updates the editable study-map source and title.
+- There is no public REST route for this in the current phase; the admin editor uses a server action so the source stays inside the authenticated admin workflow.
 
 ### `POST /api/admin/ideas/generate`
 
