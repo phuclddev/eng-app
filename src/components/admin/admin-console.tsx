@@ -90,9 +90,12 @@ export function AdminConsole({
         <Typography.Text type="secondary">
           Approve learners, maintain topics, and keep the learning inventory healthy.
         </Typography.Text>
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 12 }} className="mobile-actions">
           <Button type="primary" className="full-width-mobile">
             <Link href="/admin/questions">Manage question bank</Link>
+          </Button>
+          <Button className="full-width-mobile">
+            <Link href="/admin/ideas">Speaking Idea Map</Link>
           </Button>
         </div>
       </div>

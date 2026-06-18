@@ -14,6 +14,160 @@
 - `POST /api/admin/questions/bulk-status`
 - `POST /api/admin/translation/import`
 
+## Admin pages and server actions
+
+- `GET /admin/ideas`
+- `GET /admin/ideas/new`
+- `GET /admin/ideas/[id]`
+- `GET /admin/ideas/map`
+- `POST /api/admin/ideas/generate`
+- `POST /api/admin/ideas/generate-answer`
+- `POST /api/admin/ideas/map-question`
+- `PATCH /api/admin/ideas/question-map/:id`
+- `DELETE /api/admin/ideas/question-map/:id`
+- `POST /api/admin/ideas/suggest-question-mapping`
+- Server action: `saveSpeakingIdeaAction`
+- Server action: `setSpeakingIdeaStatusAction`
+
+### Speaking Idea Map admin action contract
+
+- Admin-only. Requires `ADMIN` role and an `APPROVED` session.
+- `saveSpeakingIdeaAction` accepts:
+  - `id` optional for update
+  - `title`
+  - `shortLabel`
+  - `descriptionVi`
+  - `descriptionEn`
+  - `popularityScore` integer `1..5`
+  - `reuseScore` integer `1..5`
+  - `status` one of `DRAFT`, `ACTIVE`, `ARCHIVED`
+  - `variants[]` with:
+    - `bandLevel`
+    - `phrase`
+    - `exampleSentence`
+  - `supports[]` with:
+    - `supportType`
+    - `text`
+    - `example`
+  - `patterns[]` with:
+    - `patternText`
+    - `variablesJson` optional JSON object/array
+    - `exampleAnswer`
+  - `questionMaps[]` with:
+    - `speakingQuestionId`
+    - `relevanceScore`
+    - `isPrimary`
+    - `aiReason`
+- Validation rules:
+  - duplicate linked question ids are rejected
+  - more than one `isPrimary: true` question link is rejected
+  - invalid JSON in `variablesJson` is rejected
+- Saves parent + nested records transactionally and returns the refreshed `SpeakingIdeaRecord`.
+
+### Speaking Idea Map status action
+
+- `setSpeakingIdeaStatusAction` accepts:
+  - `ideaId`
+  - `status` one of `DRAFT`, `ACTIVE`, `ARCHIVED`
+- Returns the updated `SpeakingIdeaRecord`.
+
+### `POST /api/admin/ideas/generate`
+
+- Admin-only. Requires `ADMIN` role and an `APPROVED` session.
+- Accepts JSON:
+  - `topic` optional topic hint
+  - `count` optional integer `1..30`, default `10`
+  - `targetBand` optional number `4..9`, default `6.5`
+  - `includeExistingContext` optional boolean, default `true`
+- Uses the server-side AI client and a dedicated reusable-idea prompt builder.
+- Loads existing speaking ideas to avoid duplicates by normalized:
+  - `title`
+  - `shortLabel`
+- Generated ideas are always saved as `DRAFT`, never `ACTIVE`.
+- The generator does not create question mappings automatically in this phase.
+- Returns:
+  - `summary.batchId`
+  - `summary.created`
+  - `summary.skippedDuplicates`
+  - `summary.parseErrors`
+  - `summary.warnings`
+  - `summary.ideas`
+
+### `POST /api/admin/ideas/generate-answer`
+
+- Admin-only. Requires `ADMIN` role and an `APPROVED` session.
+- Accepts JSON:
+  - `questionId`
+  - `ideaId`
+  - `targetBand` optional number `4..9`
+  - `length` optional one of `SHORT`, `MEDIUM`, `LONG` (default `MEDIUM`)
+- Loads:
+  - the IELTS Speaking question context (`part`, `topic`, `subTopic`, `prompt`, cue-card bullets)
+  - the selected reusable speaking idea (`title`, descriptions, variants, support points, patterns)
+  - the optional existing idea-question mapping reason
+  - a bounded shortlist of relevant Chunk Library items from question mappings, same-topic chunks, and general high-value chunks
+- Uses a dedicated server-side prompt builder so the AI writes from the reusable idea rather than writing a generic answer.
+- Returns:
+  - `answer.questionId`
+  - `answer.ideaId`
+  - `answer.targetBand`
+  - `answer.length`
+  - `answer.answerMarkdown`
+  - `answer.generatedAt`
+  - `selectedChunkCount`
+  - `usedChunks`
+- Current phase is intentionally `generate-only`: answers are not persisted yet, so admin reviews/copies/regenerates them from the UI.
+
+### `POST /api/admin/ideas/map-question`
+
+- Admin-only. Requires `ADMIN` role and an `APPROVED` session.
+- Accepts JSON:
+  - `ideaId`
+  - `questionId`
+  - `relevanceScore` integer `1..5`
+  - `isPrimary` boolean
+  - `aiReason` optional string
+- Validates that both the speaking idea and the IELTS question exist.
+- Rejects duplicate links for the same `(ideaId, questionId)` pair.
+- If `isPrimary` is `true`, demotes any other existing primary mapping on the same question.
+- Returns the created mapping with both the compact `idea` summary and compact `speakingQuestion` summary.
+
+### `PATCH /api/admin/ideas/question-map/:id`
+
+- Admin-only. Requires `ADMIN` role and an `APPROVED` session.
+- Accepts partial JSON:
+  - `relevanceScore` optional integer `1..5`
+  - `isPrimary` optional boolean
+  - `aiReason` optional string or `null`
+- Rejects missing mapping ids with `404 NOT_FOUND`.
+- If `isPrimary` is set to `true`, keeps at most one primary mapping for the linked question by demoting the others.
+- Returns the updated mapping with compact `idea` and `speakingQuestion` summaries.
+
+### `DELETE /api/admin/ideas/question-map/:id`
+
+- Admin-only. Requires `ADMIN` role and an `APPROVED` session.
+- Deletes one idea-question link by id.
+- Rejects missing ids with `404 NOT_FOUND`.
+- Returns `{ success: true }` on success.
+
+### `POST /api/admin/ideas/suggest-question-mapping`
+
+- Admin-only. Requires `ADMIN` role and an `APPROVED` session.
+- Accepts JSON:
+  - `mode` one of `QUESTION_TO_IDEAS` or `IDEA_TO_QUESTIONS`
+  - `questionId` required in `QUESTION_TO_IDEAS` mode
+  - `ideaId` required in `IDEA_TO_QUESTIONS` mode
+  - `limit` optional integer `1..12`
+- Uses a dedicated server-side prompt builder for reusable idea/question matching.
+- Never saves suggestions automatically.
+- Excludes already-linked records before calling AI so admins only review net-new candidates.
+- Filters the AI response back against the loaded candidate pool and keeps at most one `isPrimary: true` suggestion in the returned list.
+- Returns `{ suggestions }`, where each suggestion includes:
+  - `targetId`
+  - `relevanceScore`
+  - `isPrimary`
+  - `aiReason`
+
 ### `POST /api/admin/chunks/import`
 
 - Accepts multipart form data with:

@@ -22,13 +22,17 @@ import {
   FAMILY_SCENARIO_STATUSES,
   FAMILY_SPEAKER_ROLES,
   FAMILY_TARGET_LEVELS,
-  TRANSLATION_FROM_QUESTION_LENGTHS,
-  TRANSLATION_FROM_QUESTION_MAX_CHUNKS,
-  TRANSLATION_RECALL_CONFIDENCES,
   IELTS_SKILLS,
   IELTS_TASK_TYPES,
   PRACTICE_MODES,
   QUESTION_CHUNK_USAGE_ROLES,
+  SPEAKING_IDEA_GENERATE_DEFAULT_COUNT,
+  SPEAKING_IDEA_GENERATE_MAX_COUNT,
+  SPEAKING_IDEA_STATUSES,
+  SPEAKING_IDEA_SUPPORT_TYPES,
+  TRANSLATION_FROM_QUESTION_LENGTHS,
+  TRANSLATION_FROM_QUESTION_MAX_CHUNKS,
+  TRANSLATION_RECALL_CONFIDENCES,
   USER_ROLES,
   USER_STATUSES,
 } from "@/lib/constants";
@@ -400,6 +404,21 @@ export const translationFromQuestionSchema = z.object({
     .default(TRANSLATION_FROM_QUESTION_MAX_CHUNKS),
 });
 
+function parseOptionalJsonString(
+  value: null | string | undefined,
+  fieldLabel: string,
+) {
+  if (!value || value.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new Error(`${fieldLabel} must be valid JSON.`);
+  }
+}
+
 export const questionChunkMappingSchema = z.object({
   chunkId: z.string().trim().min(1, "Chunk is required."),
   usageRole: z.enum(QUESTION_CHUNK_USAGE_ROLES),
@@ -440,6 +459,216 @@ export const questionChunkMappingsFormSchema = z
       sortOrder: index,
     })),
   }));
+
+const speakingIdeaVariantSchema = z.object({
+  id: z.string().trim().optional(),
+  bandLevel: z.coerce.number().min(4).max(9),
+  phrase: z.string().trim().min(2, "Variant phrase is required.").max(191),
+  exampleSentence: z
+    .string()
+    .trim()
+    .min(5, "Variant example sentence is required.")
+    .max(4000, "Variant example sentence is too long."),
+});
+
+const speakingIdeaSupportSchema = z.object({
+  id: z.string().trim().optional(),
+  supportType: z.enum(SPEAKING_IDEA_SUPPORT_TYPES),
+  text: z
+    .string()
+    .trim()
+    .min(5, "Support text is required.")
+    .max(4000, "Support text is too long."),
+  example: z.string().trim().optional().nullable(),
+});
+
+const speakingIdeaPatternSchema = z.object({
+  id: z.string().trim().optional(),
+  patternText: z
+    .string()
+    .trim()
+    .min(5, "Pattern text is required.")
+    .max(4000, "Pattern text is too long."),
+  variablesJson: z.string().trim().optional().nullable(),
+  exampleAnswer: z
+    .string()
+    .trim()
+    .min(5, "Example answer is required.")
+    .max(6000, "Example answer is too long."),
+});
+
+const speakingIdeaQuestionMapSchema = z.object({
+  id: z.string().trim().optional(),
+  speakingQuestionId: z.string().trim().min(1, "Linked question is required."),
+  relevanceScore: z.coerce.number().int().min(1).max(5),
+  isPrimary: z.boolean().optional().default(false),
+  aiReason: z.string().trim().optional().nullable(),
+});
+
+export const speakingIdeaFormSchema = z
+  .object({
+    id: z.string().trim().optional(),
+    title: z.string().trim().min(2, "Idea title is required.").max(191),
+    shortLabel: z.string().trim().min(2, "Short label is required.").max(80),
+    descriptionVi: z
+      .string()
+      .trim()
+      .min(10, "Vietnamese description is required.")
+      .max(6000, "Vietnamese description is too long."),
+    descriptionEn: z
+      .string()
+      .trim()
+      .min(10, "English description is required.")
+      .max(6000, "English description is too long."),
+    popularityScore: z.coerce.number().int().min(1).max(5),
+    reuseScore: z.coerce.number().int().min(1).max(5),
+    status: z.enum(SPEAKING_IDEA_STATUSES),
+    variants: z.array(speakingIdeaVariantSchema).default([]),
+    supports: z.array(speakingIdeaSupportSchema).default([]),
+    patterns: z.array(speakingIdeaPatternSchema).default([]),
+    questionMaps: z.array(speakingIdeaQuestionMapSchema).default([]),
+  })
+  .superRefine((input, context) => {
+    const variantKeys = new Set<string>();
+    const questionIds = new Set<string>();
+    let primaryCount = 0;
+
+    input.variants.forEach((variant, index) => {
+      const key = `${variant.bandLevel}::${variant.phrase.toLowerCase()}`;
+
+      if (variantKeys.has(key)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["variants", index, "phrase"],
+          message: "Duplicate band-level variant phrase.",
+        });
+        return;
+      }
+
+      variantKeys.add(key);
+    });
+
+    input.questionMaps.forEach((mapping, index) => {
+      if (questionIds.has(mapping.speakingQuestionId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["questionMaps", index, "speakingQuestionId"],
+          message: "Duplicate linked question.",
+        });
+      } else {
+        questionIds.add(mapping.speakingQuestionId);
+      }
+
+      if (mapping.isPrimary) {
+        primaryCount += 1;
+      }
+    });
+
+    if (primaryCount > 1) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["questionMaps"],
+        message: "Only one linked question can be marked as primary.",
+      });
+    }
+  })
+  .transform((input) => ({
+    ...input,
+    variants: input.variants.map((variant) => ({
+      ...variant,
+      phrase: variant.phrase.trim(),
+      exampleSentence: variant.exampleSentence.trim(),
+    })),
+    supports: input.supports.map((support) => ({
+      ...support,
+      text: support.text.trim(),
+      example: support.example ? support.example.trim() : null,
+    })),
+    patterns: input.patterns.map((pattern) => {
+      try {
+        return {
+          ...pattern,
+          variablesJson: parseOptionalJsonString(
+            pattern.variablesJson,
+            "Pattern variables JSON",
+          ),
+        };
+      } catch (error) {
+        throw new z.ZodError([
+          {
+            code: "custom",
+            path: ["patterns"],
+            message:
+              error instanceof Error
+                ? error.message
+                : "Pattern variables JSON must be valid JSON.",
+          },
+        ]);
+      }
+    }),
+    questionMaps: input.questionMaps.map((mapping) => ({
+      ...mapping,
+      aiReason: mapping.aiReason ? mapping.aiReason.trim() : null,
+    })),
+  }));
+
+export const speakingIdeaGenerateSchema = z.object({
+  topic: z.string().trim().min(2).max(120).optional(),
+  count: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(SPEAKING_IDEA_GENERATE_MAX_COUNT)
+    .default(SPEAKING_IDEA_GENERATE_DEFAULT_COUNT),
+  targetBand: z.coerce.number().min(4).max(9).default(6.5),
+  includeExistingContext: z.boolean().default(true),
+});
+
+export const ideaQuestionMapCreateSchema = z.object({
+  ideaId: z.string().trim().min(1, "Idea is required."),
+  questionId: z.string().trim().min(1, "Question is required."),
+  relevanceScore: z.coerce.number().int().min(1).max(5),
+  isPrimary: z.boolean().default(false),
+  aiReason: z.string().trim().max(4000).optional().nullable(),
+});
+
+export const ideaQuestionMapUpdateSchema = z.object({
+  relevanceScore: z.coerce.number().int().min(1).max(5).optional(),
+  isPrimary: z.boolean().optional(),
+  aiReason: z.string().trim().max(4000).optional().nullable(),
+});
+
+export const ideaQuestionMappingSuggestSchema = z
+  .object({
+    questionId: z.string().trim().optional(),
+    ideaId: z.string().trim().optional(),
+    mode: z.enum(["QUESTION_TO_IDEAS", "IDEA_TO_QUESTIONS"]),
+    limit: z.coerce.number().int().min(1).max(20).default(8).optional(),
+  })
+  .superRefine((input, context) => {
+    if (input.mode === "QUESTION_TO_IDEAS" && !input.questionId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["questionId"],
+        message: "Question is required in QUESTION_TO_IDEAS mode.",
+      });
+    }
+
+    if (input.mode === "IDEA_TO_QUESTIONS" && !input.ideaId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ideaId"],
+        message: "Idea is required in IDEA_TO_QUESTIONS mode.",
+      });
+    }
+  });
+
+export const speakingIdeaGenerateAnswerSchema = z.object({
+  questionId: z.string().trim().min(1, "Question is required."),
+  ideaId: z.string().trim().min(1, "Idea is required."),
+  targetBand: z.coerce.number().min(4).max(9).optional(),
+  length: z.enum(TRANSLATION_FROM_QUESTION_LENGTHS).optional().default("MEDIUM"),
+});
 
 export const practiceSubmissionSchema = z.object({
   mode: z.enum(PRACTICE_MODES),
@@ -651,6 +880,13 @@ export type FamilyScenarioGeneratePayload = z.infer<
 >;
 export type FamilyChunkFormInput = z.input<typeof familyChunkFormSchema>;
 export type FamilyChunkFormValues = z.infer<typeof familyChunkFormSchema>;
+export type SpeakingIdeaFormInput = z.input<typeof speakingIdeaFormSchema>;
+export type SpeakingIdeaFormValues = z.infer<typeof speakingIdeaFormSchema>;
+export type SpeakingIdeaGeneratePayload = z.infer<typeof speakingIdeaGenerateSchema>;
+export type IdeaQuestionMapCreatePayload = z.infer<typeof ideaQuestionMapCreateSchema>;
+export type IdeaQuestionMapUpdatePayload = z.infer<typeof ideaQuestionMapUpdateSchema>;
+export type IdeaQuestionMappingSuggestPayload = z.infer<typeof ideaQuestionMappingSuggestSchema>;
+export type SpeakingIdeaGenerateAnswerPayload = z.infer<typeof speakingIdeaGenerateAnswerSchema>;
 export type QuestionChunkMappingsFormInput = z.input<
   typeof questionChunkMappingsFormSchema
 >;

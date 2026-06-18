@@ -12,6 +12,7 @@ export default async function AdminQuestionBankPage() {
       aiTutorEnabled={isAiTutorConfigured()}
       questions={snapshot.questions}
       chunkOptions={snapshot.chunks}
+      ideaOptions={snapshot.ideas}
     />
   );
 }

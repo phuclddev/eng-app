@@ -35,6 +35,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { SpeakingSampleAnswerPanel } from "@/components/ai/speaking-sample-answer-panel";
+import { SpeakingIdeaAnswerGeneratorPanel } from "@/components/admin/speaking-idea-answer-generator-panel";
 import {
   IELTS_QUESTION_GENERATE_DEFAULT_COUNT,
   IELTS_QUESTION_GENERATE_MAX_COUNT,
@@ -47,20 +48,26 @@ import {
 } from "@/lib/constants";
 import type {
   ChunkOption,
+  IdeaQuestionMappingSuggestion,
   IeltsQuestionGenerationSummary,
   IeltsQuestionRecord,
   IeltsQuestionStatus,
   QuestionChunkUsageRole,
+  SpeakingIdeaOption,
 } from "@/lib/types";
 import { saveQuestionChunkMappingsAction } from "@/server/actions/admin";
+
+type IdeaRecommendation = NonNullable<IeltsQuestionRecord["ideaRecommendations"]>[number];
 
 export function QuestionBankAdmin({
   aiTutorEnabled,
   chunkOptions,
+  ideaOptions,
   questions,
 }: {
   aiTutorEnabled: boolean;
   chunkOptions: ChunkOption[];
+  ideaOptions: SpeakingIdeaOption[];
   questions: IeltsQuestionRecord[];
 }) {
   const screens = Grid.useBreakpoint();
@@ -90,6 +97,15 @@ export function QuestionBankAdmin({
   const [selectedSuggestedIds, setSelectedSuggestedIds] = useState<Set<string>>(
     new Set(),
   );
+  const [questionIdeaMaps, setQuestionIdeaMaps] = useState<IdeaRecommendation[]>([]);
+  const [selectedIdeaId, setSelectedIdeaId] = useState<string | undefined>();
+  const [ideaPending, startIdeaTransition] = useTransition();
+  const [suggestIdeaLoading, setSuggestIdeaLoading] = useState(false);
+  const [suggestedIdeas, setSuggestedIdeas] = useState<IdeaQuestionMappingSuggestion[]>([]);
+  const [ideaAnswerTarget, setIdeaAnswerTarget] = useState<{
+    idea: SpeakingIdeaOption;
+    question: IeltsQuestionRecord;
+  } | null>(null);
 
   const counts = {
     SUGGESTED: questionRows.filter((q) => q.status === "SUGGESTED").length,
@@ -273,6 +289,9 @@ export function QuestionBankAdmin({
 
   const openMappingDrawer = (question: IeltsQuestionRecord) => {
     setEditingQuestion(question);
+    setQuestionIdeaMaps(question.ideaRecommendations ?? []);
+    setSelectedIdeaId(undefined);
+    setSuggestedIdeas([]);
     form.setFieldsValue({
       questionId: question.id,
       mappings: question.recommendations.map((recommendation) => ({
@@ -282,6 +301,154 @@ export function QuestionBankAdmin({
       })),
     });
     setDrawerOpen(true);
+  };
+
+  const syncEditingQuestionIdeas = (
+    updater: (current: IdeaRecommendation[]) => IdeaRecommendation[],
+  ) => {
+    setQuestionIdeaMaps((current) => {
+      const next = updater(current);
+      if (editingQuestion) {
+        const updatedQuestion = {
+          ...editingQuestion,
+          ideaRecommendations: next,
+        };
+        setEditingQuestion(updatedQuestion);
+        setQuestionRows((currentRows) =>
+          currentRows.map((row) => (row.id === updatedQuestion.id ? updatedQuestion : row)),
+        );
+      }
+      return next;
+    });
+  };
+
+  const createIdeaMapping = (input: {
+    ideaId: string;
+    relevanceScore: number;
+    isPrimary: boolean;
+    aiReason?: string | null;
+  }) => {
+    if (!editingQuestion) {
+      return;
+    }
+
+    startIdeaTransition(async () => {
+      const response = await fetch("/api/admin/ideas/map-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ideaId: input.ideaId,
+          questionId: editingQuestion.id,
+          relevanceScore: input.relevanceScore,
+          isPrimary: input.isPrimary,
+          aiReason: input.aiReason ?? null,
+        }),
+      });
+      const data = (await response.json()) as {
+        mapping?: IdeaRecommendation;
+        message?: string;
+      };
+
+      if (!response.ok || !data.mapping) {
+        message.error(data.message ?? "Could not create idea mapping.");
+        return;
+      }
+
+      syncEditingQuestionIdeas((current) => {
+        const next = input.isPrimary
+          ? current.map((mapping) => ({ ...mapping, isPrimary: false }))
+          : current;
+        return [data.mapping!, ...next];
+      });
+      setSelectedIdeaId(undefined);
+      message.success(data.message ?? "Idea mapping created.");
+    });
+  };
+
+  const updateIdeaMapping = (
+    mapId: string,
+    input: {
+      relevanceScore?: number;
+      isPrimary?: boolean;
+      aiReason?: string | null;
+    },
+  ) => {
+    startIdeaTransition(async () => {
+      const response = await fetch(`/api/admin/ideas/question-map/${mapId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const data = (await response.json()) as {
+        mapping?: IdeaRecommendation;
+        message?: string;
+      };
+
+      if (!response.ok || !data.mapping) {
+        message.error(data.message ?? "Could not update idea mapping.");
+        return;
+      }
+
+      syncEditingQuestionIdeas((current) =>
+        current.map((mapping) => {
+          if (input.isPrimary && mapping.id !== mapId) {
+            return { ...mapping, isPrimary: false };
+          }
+          return mapping.id === mapId ? data.mapping! : mapping;
+        }),
+      );
+      message.success(data.message ?? "Idea mapping updated.");
+    });
+  };
+
+  const removeIdeaMapping = (mapId: string) => {
+    startIdeaTransition(async () => {
+      const response = await fetch(`/api/admin/ideas/question-map/${mapId}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json()) as { message?: string };
+
+      if (!response.ok) {
+        message.error(data.message ?? "Could not remove idea mapping.");
+        return;
+      }
+
+      syncEditingQuestionIdeas((current) => current.filter((mapping) => mapping.id !== mapId));
+      message.success(data.message ?? "Idea mapping removed.");
+    });
+  };
+
+  const suggestIdeasForQuestion = async () => {
+    if (!editingQuestion) {
+      return;
+    }
+
+    setSuggestIdeaLoading(true);
+    try {
+      const response = await fetch("/api/admin/ideas/suggest-question-mapping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "QUESTION_TO_IDEAS",
+          questionId: editingQuestion.id,
+          limit: 6,
+        }),
+      });
+      const data = (await response.json()) as {
+        suggestions?: IdeaQuestionMappingSuggestion[];
+        message?: string;
+      };
+
+      if (!response.ok || !data.suggestions) {
+        throw new Error(data.message ?? "Could not suggest ideas.");
+      }
+
+      setSuggestedIdeas(data.suggestions);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Could not suggest ideas.");
+    } finally {
+      setSuggestIdeaLoading(false);
+    }
   };
 
   const handleImport = async (file?: File) => {
@@ -705,6 +872,198 @@ export function QuestionBankAdmin({
               question={editingQuestion}
             />
 
+            <Card
+              size="small"
+              title={`Recommended Ideas (${questionIdeaMaps.length})`}
+              extra={
+                <Button
+                  icon={suggestIdeaLoading ? <LoadingOutlined /> : <ThunderboltOutlined />}
+                  onClick={() => void suggestIdeasForQuestion()}
+                  disabled={ideaPending}
+                >
+                  Suggest ideas
+                </Button>
+              }
+            >
+              <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                <div className="responsive-toolbar">
+                  <Select
+                    className="responsive-toolbar__grow"
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="Add idea manually"
+                    value={selectedIdeaId}
+                    onChange={(value) => setSelectedIdeaId(value)}
+                    options={ideaOptions
+                      .filter(
+                        (idea) =>
+                          !questionIdeaMaps.some((mapping) => mapping.idea.id === idea.id),
+                      )
+                      .map((idea) => ({
+                        label: `${idea.title} (${idea.shortLabel}) · reuse ${idea.reuseScore}/5`,
+                        value: idea.id,
+                      }))}
+                  />
+                  <Button
+                    type="primary"
+                    disabled={!selectedIdeaId}
+                    loading={ideaPending}
+                    onClick={() =>
+                      selectedIdeaId
+                        ? createIdeaMapping({
+                            ideaId: selectedIdeaId,
+                            relevanceScore: 3,
+                            isPrimary: questionIdeaMaps.length === 0,
+                          })
+                        : undefined
+                    }
+                  >
+                    Add idea
+                  </Button>
+                </div>
+
+                {suggestedIdeas.length > 0 ? (
+                  <Card size="small" title="AI suggestions">
+                    <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                      {suggestedIdeas.map((suggestion) => {
+                        const idea = ideaOptions.find((item) => item.id === suggestion.targetId);
+                        if (!idea) {
+                          return null;
+                        }
+
+                        return (
+                          <Card
+                            key={suggestion.targetId}
+                            size="small"
+                            extra={
+                              <Button
+                                size="small"
+                                type="primary"
+                                loading={ideaPending}
+                                onClick={() =>
+                                  createIdeaMapping({
+                                    ideaId: suggestion.targetId,
+                                    relevanceScore: suggestion.relevanceScore,
+                                    isPrimary: suggestion.isPrimary,
+                                    aiReason: suggestion.aiReason,
+                                  })
+                                }
+                              >
+                                Add suggestion
+                              </Button>
+                            }
+                          >
+                            <Space direction="vertical" size={6} style={{ width: "100%" }}>
+                              <Typography.Text strong>
+                                {idea.title} ({idea.shortLabel})
+                              </Typography.Text>
+                              <Space wrap>
+                                <Tag>Reuse {idea.reuseScore}/5</Tag>
+                                <Tag>Popularity {idea.popularityScore}/5</Tag>
+                                <Tag>Relevance {suggestion.relevanceScore}/5</Tag>
+                                {suggestion.isPrimary ? <Tag color="green">Primary</Tag> : null}
+                              </Space>
+                              {suggestion.aiReason ? (
+                                <Typography.Text type="secondary" className="wrap-anywhere">
+                                  {suggestion.aiReason}
+                                </Typography.Text>
+                              ) : null}
+                            </Space>
+                          </Card>
+                        );
+                      })}
+                    </Space>
+                  </Card>
+                ) : null}
+
+                {questionIdeaMaps.length === 0 ? (
+                  <Empty
+                    description="No reusable ideas linked yet."
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  />
+                ) : (
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    {questionIdeaMaps.map((mapping) => (
+                      <Card
+                        key={mapping.id}
+                        size="small"
+                        title={`${mapping.idea.title} (${mapping.idea.shortLabel})`}
+                        extra={
+                          <Popconfirm
+                            title="Remove this idea mapping?"
+                            onConfirm={() => removeIdeaMapping(mapping.id)}
+                          >
+                            <Button danger size="small" loading={ideaPending}>
+                              Remove
+                            </Button>
+                          </Popconfirm>
+                        }
+                      >
+                        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                          <Space wrap>
+                            <Tag>{mapping.idea.status}</Tag>
+                            <Tag>Reuse {mapping.idea.reuseScore}/5</Tag>
+                            <Tag>Popularity {mapping.idea.popularityScore}/5</Tag>
+                          </Space>
+                          {editingQuestion ? (
+                            <Button
+                              size="small"
+                              onClick={() =>
+                                setIdeaAnswerTarget({
+                                  idea: mapping.idea,
+                                  question: editingQuestion,
+                                })
+                              }
+                              className="full-width-mobile"
+                            >
+                              Generate Answer From This Idea
+                            </Button>
+                          ) : null}
+                          <div className="family-form-grid">
+                            <div>
+                              <Typography.Text type="secondary">Primary</Typography.Text>
+                              <Select
+                                value={mapping.isPrimary}
+                                onChange={(value) =>
+                                  updateIdeaMapping(mapping.id, { isPrimary: value })
+                                }
+                                options={[
+                                  { label: "Secondary", value: false },
+                                  { label: "Primary", value: true },
+                                ]}
+                              />
+                            </div>
+                            <div>
+                              <Typography.Text type="secondary">Relevance</Typography.Text>
+                              <InputNumber
+                                min={1}
+                                max={5}
+                                value={mapping.relevanceScore}
+                                onChange={(value) =>
+                                  typeof value === "number"
+                                    ? updateIdeaMapping(mapping.id, { relevanceScore: value })
+                                    : undefined
+                                }
+                                style={{ width: "100%" }}
+                              />
+                            </div>
+                          </div>
+                          <Input.TextArea
+                            autoSize={{ minRows: 2, maxRows: 4 }}
+                            placeholder="Why does this idea fit the question?"
+                            defaultValue={mapping.aiReason ?? ""}
+                            onBlur={(event) =>
+                              updateIdeaMapping(mapping.id, { aiReason: event.target.value || null })
+                            }
+                          />
+                        </Space>
+                      </Card>
+                    ))}
+                  </Space>
+                )}
+              </Space>
+            </Card>
+
             <Form form={form} layout="vertical">
               <Form.Item name="questionId" hidden>
                 <Input />
@@ -933,6 +1292,26 @@ export function QuestionBankAdmin({
             </Card>
           ) : null}
         </Space>
+      </Modal>
+
+      <Modal
+        open={Boolean(ideaAnswerTarget)}
+        onCancel={() => setIdeaAnswerTarget(null)}
+        footer={null}
+        width={840}
+        destroyOnHidden
+        title={
+          ideaAnswerTarget
+            ? `Generate Answer · ${ideaAnswerTarget.idea.title}`
+            : "Generate Answer"
+        }
+      >
+        {ideaAnswerTarget ? (
+          <SpeakingIdeaAnswerGeneratorPanel
+            idea={ideaAnswerTarget.idea}
+            question={ideaAnswerTarget.question}
+          />
+        ) : null}
       </Modal>
     </div>
   );

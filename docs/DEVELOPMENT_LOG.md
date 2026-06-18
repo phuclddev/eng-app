@@ -144,3 +144,142 @@
   4. `pnpm prisma migrate deploy`
   5. Verify with `pnpm prisma migrate status` and re-run `SHOW INDEX FROM FamilyConversationRecallAttempt;` — expect `fcra_user_created_idx`, `fcra_user_conv_created_idx`, `fcra_user_line_created_idx`.
   6. `pm2 reload ielts-chunk-trainer --update-env` to pick up the regenerated Prisma client.
+
+## 2026-06-16
+
+- Added `SpeakingIdea`, `SpeakingIdeaVariant`, `SpeakingIdeaSupport`, `SpeakingIdeaPattern`, and `SpeakingIdeaQuestionMap` as the Phase 1 foundation for a new admin-only `Speaking Idea Map` module under `/admin/ideas`.
+- Added `SpeakingIdeaStatus` (`DRAFT`, `ACTIVE`, `ARCHIVED`) and `SpeakingIdeaSupportType` (`REASON`, `EXAMPLE`, `RESULT`, `CONTRAST`, `DETAIL`, `PERSONAL_EXPERIENCE`) enums with a dedicated Prisma migration `0018_speaking_idea_map_foundation`.
+- Added admin navigation entry `Speaking Idea Map` and three server-rendered routes:
+  - `/admin/ideas`
+  - `/admin/ideas/new`
+  - `/admin/ideas/[id]`
+- Added a separate admin data layer for speaking ideas with transactional nested save behavior so parent idea + variants + support points + answer patterns + question links are rewritten atomically.
+- Added zod validation for the Speaking Idea editor:
+  - score ranges must stay `1..5`
+  - duplicate linked questions are rejected
+  - only one linked question may be marked `isPrimary`
+  - malformed pattern `variablesJson` is rejected before persistence
+- Added admin server actions:
+  - `saveSpeakingIdeaAction`
+  - `setSpeakingIdeaStatusAction`
+  with structured metadata logging and server-side `ADMIN` enforcement.
+- Added a compact admin list page with filters for `status`, `popularityScore`, `reuseScore`, and text search, plus mobile-safe card fallback and archive/draft/activate actions.
+- Added a nested idea editor with inline management for:
+  - band variants
+  - supporting points
+  - answer patterns
+  - linked IELTS speaking questions
+- Added service and middleware coverage for:
+  - admin-only access
+  - nested CRUD validation
+  - invalid JSON rejection
+  - archive status behavior
+- Kept the new module isolated from:
+  - IELTS learner practice/review scheduling
+  - Family English routes and models
+  - AI generation flows
+- Added Phase 2 visual `Speaking Idea Map` view at `/admin/ideas/map` using a lightweight CSS/tree layout instead of a graph dependency.
+- Added a pure `buildSpeakingIdeaMindMap` transformation helper that:
+  - filters by topic, status, minimum reuse score, and question part
+  - derives node size from `reuseScore`, `popularityScore`, and linked-question count
+  - expands child branches for variants, support points, and linked questions
+- Added map-route middleware coverage and helper tests for node sizing/filtering while keeping the module admin-only and schema-stable.
+- Added Phase 3 AI generation for reusable IELTS Speaking ideas through `POST /api/admin/ideas/generate` and a dedicated prompt builder `buildIeltsSpeakingIdeaGeneratorPrompt`.
+- Added small `SpeakingIdea` metadata fields `aiReason` and `generatedBatchId` with migration `0019_speaking_idea_ai_generation` so AI-generated drafts keep their rationale and batch grouping without changing learner-facing IELTS flows.
+- Added server-side duplicate protection for generated ideas using normalized `title` and normalized `shortLabel`, even when the prompt runs without existing-context hints.
+- Added admin UI support on `/admin/ideas`:
+  - `Generate Ideas with AI` button
+  - small generation modal
+  - automatic redirect into `Review Drafts`
+- Generated ideas are now always saved as `DRAFT`; admins must manually activate them after review.
+- Phase 3 intentionally does not auto-create `SpeakingIdeaQuestionMap` links from AI `exampleQuestions`; those remain example hints only for now.
+- Added route and service coverage for:
+  - admin-only generation access
+  - invalid payload rejection
+  - malformed AI JSON handling
+  - duplicate skipping
+  - draft creation
+  - draft-to-active approval flow
+- Added Phase 4 Speaking Idea ↔ Question Bank mapping so reusable ideas can now be linked to IELTS Speaking questions from both sides of the admin UI.
+- Added admin-only mapping routes:
+  - `POST /api/admin/ideas/map-question`
+  - `PATCH /api/admin/ideas/question-map/:id`
+  - `DELETE /api/admin/ideas/question-map/:id`
+  - `POST /api/admin/ideas/suggest-question-mapping`
+- Added question-bank drawer support on `/admin/questions`:
+  - view current recommended ideas for a question
+  - manually add/remove idea mappings
+  - mark one mapping as primary
+  - adjust `relevanceScore`
+  - review AI suggestions before saving
+- Added idea-detail support on `/admin/ideas/[id]` to ask AI for matching questions and append suggestions into the draft form before save.
+- Added server-side duplicate prevention for `(ideaId, speakingQuestionId)` and server-side primary enforcement so only one idea per question remains primary after create/update.
+- Added dedicated AI prompt builders and suggestion parsing for:
+  - `QUESTION_TO_IDEAS`
+  - `IDEA_TO_QUESTIONS`
+  while keeping suggestions review-only and never auto-saving them.
+- Added mapping route/service coverage for:
+  - admin-only access
+  - invalid payload rejection
+  - duplicate mapping rejection
+  - primary demotion behavior
+  - idea/question existence checks
+  - AI suggestion parsing and candidate filtering
+- Added Phase 5 admin-only answer generation from reusable speaking ideas through `POST /api/admin/ideas/generate-answer`.
+- Added a dedicated prompt builder for `question + idea + band + length` generation so the AI now sees:
+  - the speaking question context
+  - the selected reusable idea
+  - idea variants
+  - support points
+  - reusable answer patterns
+  - a bounded chunk shortlist from the existing Chunk Library
+  - the optional idea-question mapping reason
+- Added `Generate Answer From This Idea` controls to the admin Question Bank drawer and `Generate Answer` controls to linked questions on the Speaking Idea detail page.
+- The answer output is rendered as Markdown with these sections:
+  - `# Sample Answer`
+  - `# Idea Used`
+
+## 2026-06-18
+
+- Added Phase 6 `Speaking Idea Coverage Dashboard` at `/admin/ideas/coverage` for admin-only reuse analysis.
+- Added a speaking-idea coverage snapshot service that computes:
+  - total active ideas
+  - total mapped questions
+  - unmapped question count
+  - ideas with no linked questions
+  - top reusable ideas
+  - weak topics by coverage percent
+  - `PART_1` / `PART_2` / `PART_3` coverage
+- Added admin dashboard tables for:
+  - top reusable ideas
+  - unmapped questions
+  - weak topics
+- Added admin actions from the coverage screen to:
+  - suggest idea mappings for unmapped questions through the existing AI mapping route
+  - generate more draft ideas for weak topics through the existing AI idea-generation route
+  - jump directly to the visual mind map
+- Kept the dashboard schema-free by deriving all metrics from existing `SpeakingIdea`, `SpeakingIdeaQuestionMap`, and approved `IeltsQuestion` data.
+- Added coverage service tests and middleware coverage for `/admin/ideas/coverage`.
+- Left `generatedAnswersCount` as `0` in this phase because reusable-idea answer generation is still generate-only and not persisted.
+- Added an idempotent initial `Speaking Idea Map` seed pack with `37` reusable IELTS Speaking ideas for admin bootstrapping.
+- Added [prisma/speaking-idea-pack.ts](/Users/phucluu/Downloads/all_repo/eng-app/prisma/speaking-idea-pack.ts) as the source-of-truth pack containing:
+  - Vietnamese and English descriptions
+  - `popularityScore` / `reuseScore`
+  - `5.5 / 6.5 / 7.5` band variants
+  - support points
+  - answer patterns
+  - example-question coverage hints
+- Added [prisma/seed-speaking-ideas.ts](/Users/phucluu/Downloads/all_repo/eng-app/prisma/seed-speaking-ideas.ts) to create only missing ideas and skip duplicates by normalized `title` or `shortLabel`.
+- Seed runs never overwrite existing admin-edited `SpeakingIdea` rows; they only create new rows and leave existing nested content untouched.
+- New idea-pack rows are created as `ACTIVE` and grouped under `generatedBatchId = "seed-idea-pack-v1"`.
+- Added seed helper tests and dedicated docs in [docs/IDEA_MAP.md](/Users/phucluu/Downloads/all_repo/eng-app/docs/IDEA_MAP.md).
+  - `# Chunks / Phrases Used`
+  - `# Vietnamese Explanation`
+  - `# Reusable Pattern`
+- Added fallback normalization so if the AI returns plain text instead of the expected sectioned Markdown, the server wraps it into the required headings instead of breaking the admin flow.
+- Phase 5 is intentionally generate-only for now: answers are returned to the UI for copy/review/regeneration, but are not yet persisted in a new DB table.
+- Added route, service, and prompt coverage for:
+  - admin-only API protection
+  - question/idea existence validation
+  - prompt inclusion of reusable patterns
+  - plain-text AI fallback handling

@@ -67,6 +67,8 @@ const iconMap = {
   "/family/insights": <LineChartOutlined />,
   "/family/favorites": <TagsOutlined />,
   "/admin": <SafetyOutlined />,
+  "/admin/ideas": <BulbOutlined />,
+  "/admin/ideas/coverage": <LineChartOutlined />,
 } as const;
 
 export function AppShell({

@@ -7,6 +7,21 @@ export const USER_STATUSES = ["PENDING", "APPROVED", "BLOCKED"] as const;
 export const PRACTICE_MODES = ["LEARN", "REVIEW", "MIXED"] as const;
 export const IELTS_SKILLS = ["SPEAKING"] as const;
 export const IELTS_TASK_TYPES = ["PART_1", "PART_2", "PART_3"] as const;
+export const SPEAKING_IDEA_STATUSES = [
+  "DRAFT",
+  "ACTIVE",
+  "ARCHIVED",
+] as const;
+export const SPEAKING_IDEA_SUPPORT_TYPES = [
+  "REASON",
+  "EXAMPLE",
+  "RESULT",
+  "CONTRAST",
+  "DETAIL",
+  "PERSONAL_EXPERIENCE",
+] as const;
+export const SPEAKING_IDEA_GENERATE_DEFAULT_COUNT = 10;
+export const SPEAKING_IDEA_GENERATE_MAX_COUNT = 30;
 export const AI_SIMULATOR_PARTS = [
   "PART_1",
   "PART_2",
@@ -185,6 +200,21 @@ export const IELTS_TASK_TYPE_LABELS = {
   PART_3: "Speaking Part 3",
 } as const;
 
+export const SPEAKING_IDEA_STATUS_LABELS = {
+  DRAFT: "Draft",
+  ACTIVE: "Active",
+  ARCHIVED: "Archived",
+} as const;
+
+export const SPEAKING_IDEA_SUPPORT_TYPE_LABELS = {
+  REASON: "Reason",
+  EXAMPLE: "Example",
+  RESULT: "Result",
+  CONTRAST: "Contrast",
+  DETAIL: "Detail",
+  PERSONAL_EXPERIENCE: "Personal Experience",
+} as const;
+
 export const AI_SIMULATOR_PART_LABELS = {
   PART_1: "Speaking Part 1",
   PART_2: "Speaking Part 2",
@@ -361,6 +391,8 @@ export const FAMILY_SIDEBAR_ITEMS = [
 
 export const ADMIN_SIDEBAR_ITEMS = [
   { href: "/admin", label: "Admin", adminOnly: true },
+  { href: "/admin/ideas", label: "Speaking Idea Map", adminOnly: true },
+  { href: "/admin/ideas/coverage", label: "Idea Coverage", adminOnly: true },
 ] as const;
 
 export const SIDEBAR_ITEMS = [

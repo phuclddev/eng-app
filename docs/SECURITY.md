@@ -2,6 +2,7 @@
 
 - All learner routes require authenticated and approved users.
 - Admin actions require `ADMIN` role and are enforced server-side.
+- The Speaking Idea Map module is admin-only and currently exposed only through server-rendered admin pages plus server actions guarded by `requireAdminApiSession()`.
 - The bootstrap admin account is limited to `dinhphuc.luu@garena.vn` and is elevated through idempotent server-side upsert logic only.
 - The bootstrap admin user is kept `ADMIN` + `APPROVED` during seeding and on login for that exact email, which prevents accidental downgrade without bypassing normal RBAC checks.
 - Logs redact tokens, cookies, passwords, and secrets.
@@ -42,6 +43,14 @@
 - AI-generated IELTS questions are persisted as `status: "SUGGESTED"` so they never appear in learner-facing routes, the Speaking Simulator, or Translation Recall script generation until an admin explicitly approves them.
 - `(skill, taskType, normalizedPrompt)` dedupe is enforced server-side against the existing bank and within the same generation batch to prevent duplicate practice content.
 - The IELTS generator prompt explicitly forbids claiming any generated question will appear in a real IELTS exam and forbids producing Writing Task 1/2 prompts.
+- Speaking Idea Map logs should include metadata only:
+  - `adminUserId`
+  - `ideaId`
+  - target `status`
+  - nested item counts
+- Speaking Idea Map should not log full bilingual idea descriptions or nested pattern payloads unless explicit debugging is required.
+- Speaking Idea Map question links are validated against existing `IeltsQuestion` ids on the server so malformed or guessed ids are rejected before persistence.
+- Archiving a speaking idea changes only the idea record state; it does not archive or mutate linked IELTS questions.
 - Family scenario AI generation requires an active `FamilyProfile` for the current user. The route logs metadata only (`userId`, count, child focus, category, include-existing flag, created/skipped totals); it never logs the AI token, the full family profile, or the full AI response body.
 - AI-generated scenarios are saved as `status: "SUGGESTED"` with `isActive: false`, so they never automatically appear in conversation generation, roleplay, or daily-coach recommendations until the user explicitly approves them.
 - `FamilyScenario.normalizedTitle` enforces a per-user unique index so race-condition duplicate inserts are blocked at the database level even if the deduper inside the generator misses.

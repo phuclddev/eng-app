@@ -76,6 +76,30 @@ describe("middleware RBAC", () => {
     expect(familyProfileResponse.headers.get("location")).toBe(
       "http://localhost:3000/signin?callbackUrl=%2Ffamily%2Fprofile&auto=true",
     );
+
+    const speakingIdeasAdminResponse = await middleware(
+      new NextRequest("http://localhost:3000/admin/ideas"),
+    );
+
+    expect(speakingIdeasAdminResponse.headers.get("location")).toBe(
+      "http://localhost:3000/signin?callbackUrl=%2Fadmin%2Fideas&auto=true",
+    );
+
+    const speakingIdeasMapResponse = await middleware(
+      new NextRequest("http://localhost:3000/admin/ideas/map"),
+    );
+
+    expect(speakingIdeasMapResponse.headers.get("location")).toBe(
+      "http://localhost:3000/signin?callbackUrl=%2Fadmin%2Fideas%2Fmap&auto=true",
+    );
+
+    const speakingIdeasCoverageResponse = await middleware(
+      new NextRequest("http://localhost:3000/admin/ideas/coverage"),
+    );
+
+    expect(speakingIdeasCoverageResponse.headers.get("location")).toBe(
+      "http://localhost:3000/signin?callbackUrl=%2Fadmin%2Fideas%2Fcoverage&auto=true",
+    );
   });
 
   it("routes pending and blocked users to the approval gate", async () => {
@@ -117,6 +141,30 @@ describe("middleware RBAC", () => {
     expect(response.headers.get("location")).toBe(
       "http://localhost:3000/dashboard",
     );
+
+    const ideaResponse = await middleware(
+      new NextRequest("http://localhost:3000/admin/ideas"),
+    );
+
+    expect(ideaResponse.headers.get("location")).toBe(
+      "http://localhost:3000/dashboard",
+    );
+
+    const ideaMapResponse = await middleware(
+      new NextRequest("http://localhost:3000/admin/ideas/map"),
+    );
+
+    expect(ideaMapResponse.headers.get("location")).toBe(
+      "http://localhost:3000/dashboard",
+    );
+
+    const ideaCoverageResponse = await middleware(
+      new NextRequest("http://localhost:3000/admin/ideas/coverage"),
+    );
+
+    expect(ideaCoverageResponse.headers.get("location")).toBe(
+      "http://localhost:3000/dashboard",
+    );
   });
 
   it("allows approved admins through protected admin routes", async () => {
@@ -131,6 +179,27 @@ describe("middleware RBAC", () => {
 
     expect(response.headers.get("location")).toBeNull();
     expect(response.headers.get("x-middleware-next")).toBe("1");
+
+    const ideaResponse = await middleware(
+      new NextRequest("http://localhost:3000/admin/ideas"),
+    );
+
+    expect(ideaResponse.headers.get("location")).toBeNull();
+    expect(ideaResponse.headers.get("x-middleware-next")).toBe("1");
+
+    const ideaMapResponse = await middleware(
+      new NextRequest("http://localhost:3000/admin/ideas/map"),
+    );
+
+    expect(ideaMapResponse.headers.get("location")).toBeNull();
+    expect(ideaMapResponse.headers.get("x-middleware-next")).toBe("1");
+
+    const ideaCoverageResponse = await middleware(
+      new NextRequest("http://localhost:3000/admin/ideas/coverage"),
+    );
+
+    expect(ideaCoverageResponse.headers.get("location")).toBeNull();
+    expect(ideaCoverageResponse.headers.get("x-middleware-next")).toBe("1");
   });
 
   it("allows approved users through family routes", async () => {

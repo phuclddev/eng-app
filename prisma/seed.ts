@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import {
   buildBootstrapAdminUpsertArgs,
   BOOTSTRAP_ADMIN_NAME,
@@ -10,6 +10,7 @@ import { buildFamilyProfileUpsertArgs } from "../src/server/family/family-profil
 import { getDefaultFamilyScenariosForUser } from "../src/server/family/default-family-scenarios";
 import { buildFamilyScenarioSeedUpsertArgs } from "../src/server/family/family-scenario-helpers";
 import { slugify } from "../src/lib/utils";
+import { seedInitialSpeakingIdeaPack } from "./seed-speaking-ideas";
 
 const adapter = new PrismaMariaDb(
   process.env.DATABASE_URL ?? "mysql://localhost:3306/ielts_chunk_trainer",
@@ -50,6 +51,26 @@ async function main() {
         slug: slugify(topicName),
       },
     });
+  }
+
+  try {
+    const ideaSummary = await seedInitialSpeakingIdeaPack(prisma);
+
+    console.info(
+      `[seed] speaking idea pack: created=${ideaSummary.created} skipped=${ideaSummary.skipped} total=${ideaSummary.total}`,
+    );
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2021" &&
+      error.meta?.modelName === "SpeakingIdea"
+    ) {
+      console.warn(
+        "[seed] skipped speaking idea pack because the SpeakingIdea table does not exist in the current database yet. Apply the Speaking Idea Map migrations first if you want the initial idea bank.",
+      );
+    } else {
+      throw error;
+    }
   }
 }
 

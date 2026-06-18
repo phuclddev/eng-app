@@ -6,16 +6,19 @@ import { logger } from "@/lib/logger";
 import {
   chunkFormSchema,
   questionChunkMappingsFormSchema,
+  speakingIdeaFormSchema,
   topicFormSchema,
   userModerationSchema,
   type ChunkFormInput,
   type QuestionChunkMappingsFormInput,
+  type SpeakingIdeaFormInput,
   type TopicFormInput,
 } from "@/lib/validation";
 import { requireAdminApiSession } from "@/server/auth";
 import { saveTopic, saveChunk, removeChunk } from "@/server/data/chunks";
 import { updateUserModeration } from "@/server/data/admin";
 import { saveQuestionChunkMappings } from "@/server/data/questions";
+import { saveSpeakingIdea, setSpeakingIdeaStatus } from "@/server/data/speaking-ideas";
 
 const revalidateTargets = [
   "/dashboard",
@@ -27,6 +30,7 @@ const revalidateTargets = [
   "/progress",
   "/admin",
   "/admin/questions",
+  "/admin/ideas",
 ];
 
 function refreshWorkspace() {
@@ -122,6 +126,82 @@ export async function saveQuestionChunkMappingsAction(
         error instanceof Error
           ? error.message
           : "Unable to save question chunk mappings.",
+    };
+  }
+}
+
+export async function saveSpeakingIdeaAction(input: SpeakingIdeaFormInput) {
+  try {
+    const session = await requireAdminApiSession();
+    const values = speakingIdeaFormSchema.parse(input);
+    logger.info(
+      {
+        adminUserId: session.user.id,
+        ideaId: values.id,
+        status: values.status,
+        variantCount: values.variants.length,
+        supportCount: values.supports.length,
+        patternCount: values.patterns.length,
+        questionMapCount: values.questionMaps.length,
+      },
+      "Saving speaking idea",
+    );
+    const idea = await saveSpeakingIdea(values);
+    refreshWorkspace();
+    revalidatePath("/admin/ideas/new");
+    revalidatePath(`/admin/ideas/${idea.id}`);
+    return {
+      ok: true,
+      idea,
+      message: values.id
+        ? "Speaking idea updated successfully."
+        : "Speaking idea created successfully.",
+    };
+  } catch (error) {
+    logger.error({ error }, "Failed to save speaking idea");
+    return {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : "Unable to save speaking idea.",
+    };
+  }
+}
+
+export async function setSpeakingIdeaStatusAction(input: {
+  ideaId: string;
+  status: "ACTIVE" | "ARCHIVED" | "DRAFT";
+}) {
+  try {
+    const session = await requireAdminApiSession();
+    logger.info(
+      {
+        adminUserId: session.user.id,
+        ideaId: input.ideaId,
+        status: input.status,
+      },
+      "Updating speaking idea status",
+    );
+    const result = await setSpeakingIdeaStatus(input);
+    refreshWorkspace();
+    revalidatePath(`/admin/ideas/${result.id}`);
+    return {
+      ok: true,
+      result,
+      message:
+        input.status === "ACTIVE"
+          ? "Speaking idea activated successfully."
+          : input.status === "ARCHIVED"
+            ? "Speaking idea archived successfully."
+            : "Speaking idea moved back to draft.",
+    };
+  } catch (error) {
+    logger.error({ error }, "Failed to update speaking idea status");
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to update speaking idea status.",
     };
   }
 }

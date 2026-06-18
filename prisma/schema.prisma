@@ -79,6 +79,21 @@ enum IeltsQuestionSource {
   AI_GENERATED
 }
 
+enum SpeakingIdeaStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum SpeakingIdeaSupportType {
+  REASON
+  EXAMPLE
+  RESULT
+  CONTRAST
+  DETAIL
+  PERSONAL_EXPERIENCE
+}
+
 enum AiConversationPurpose {
   GENERAL_CHAT
   SENTENCE_CORRECTION
@@ -738,6 +753,7 @@ model IeltsQuestion {
   updatedAt                  DateTime                   @updatedAt
   createdBy                  User?                      @relation("QuestionCreator", fields: [createdById], references: [id], onDelete: SetNull)
   chunkMappings              IeltsQuestionChunkMapping[]
+  ideaMappings               SpeakingIdeaQuestionMap[]
   translationScripts         TranslationScript[]
 
   @@index([skill, taskType, topic])
@@ -746,6 +762,86 @@ model IeltsQuestion {
   @@index([status, taskType])
   @@index([generatedBatchId])
   @@index([skill, taskType, normalizedPrompt])
+}
+
+model SpeakingIdea {
+  id              String                   @id @default(cuid())
+  title           String                   @db.VarChar(191)
+  shortLabel      String                   @db.VarChar(80)
+  descriptionVi   String                   @db.Text
+  descriptionEn   String                   @db.Text
+  popularityScore Int                      @default(3)
+  reuseScore      Int                      @default(3)
+  status          SpeakingIdeaStatus       @default(DRAFT)
+  aiReason        String?                  @db.Text
+  generatedBatchId String?                 @db.VarChar(64)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  variants        SpeakingIdeaVariant[]
+  supports        SpeakingIdeaSupport[]
+  patterns        SpeakingIdeaPattern[]
+  questionMaps    SpeakingIdeaQuestionMap[]
+
+  @@index([status, updatedAt(sort: Desc)])
+  @@index([generatedBatchId])
+  @@index([popularityScore, reuseScore])
+  @@index([shortLabel])
+  @@index([title])
+}
+
+model SpeakingIdeaVariant {
+  id              String        @id @default(cuid())
+  ideaId          String
+  bandLevel       Float
+  phrase          String        @db.VarChar(191)
+  exampleSentence String        @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  idea            SpeakingIdea  @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  @@index([ideaId, bandLevel])
+}
+
+model SpeakingIdeaSupport {
+  id          String                   @id @default(cuid())
+  ideaId      String
+  supportType SpeakingIdeaSupportType
+  text        String                   @db.Text
+  example     String?                  @db.Text
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  idea        SpeakingIdea             @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  @@index([ideaId, supportType])
+}
+
+model SpeakingIdeaPattern {
+  id            String        @id @default(cuid())
+  ideaId        String
+  patternText   String        @db.Text
+  variablesJson Json?
+  exampleAnswer String        @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  idea          SpeakingIdea  @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  @@index([ideaId])
+}
+
+model SpeakingIdeaQuestionMap {
+  id                 String         @id @default(cuid())
+  ideaId             String
+  speakingQuestionId String
+  relevanceScore     Int            @default(3)
+  isPrimary          Boolean        @default(false)
+  aiReason           String?        @db.Text
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  idea               SpeakingIdea   @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  speakingQuestion   IeltsQuestion  @relation(fields: [speakingQuestionId], references: [id], onDelete: Cascade)
+
+  @@unique([ideaId, speakingQuestionId])
+  @@index([speakingQuestionId, relevanceScore])
 }
 
 model IeltsQuestionChunkMapping {

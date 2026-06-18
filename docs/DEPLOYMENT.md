@@ -37,6 +37,7 @@ If AI Tutor env vars are omitted, the main learning flows still work and the AI 
 
 - The first admin account is bootstrapped as `dinhphuc.luu@garena.vn`.
 - Seeding is idempotent and will keep that user at `ADMIN` + `APPROVED`.
+- The same seed command also bootstraps the initial `Speaking Idea Map` pack and only creates missing ideas without overwriting admin edits.
 - After Google OAuth is configured, logging in with that email will also re-assert the same admin role and approved status safely.
 
 ## AI Tutor notes

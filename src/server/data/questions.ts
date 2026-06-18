@@ -5,6 +5,7 @@ import type {
   IeltsQuestionRecord,
   IeltsQuestionPromptOption,
   QuestionChunkRecommendation,
+  SpeakingIdeaOption,
 } from "@/lib/types";
 import type { QuestionChunkMappingsFormValues } from "@/lib/validation";
 import { toStringArray } from "@/lib/utils";
@@ -12,6 +13,9 @@ import { prisma } from "@/server/prisma";
 import { saveQuestionChunkMappings as persistQuestionChunkMappings } from "@/server/question-mappings";
 
 type QuestionEntity = Awaited<ReturnType<typeof getQuestionEntities>>[number];
+type QuestionEntityWithOptionalIdeas = Omit<QuestionEntity, "ideaMappings"> & {
+  ideaMappings?: QuestionEntity["ideaMappings"];
+};
 
 function normalizeFingerprintPart(value?: null | string) {
   return value?.trim().toLowerCase().normalize("NFKC") ?? "";
@@ -59,6 +63,21 @@ async function getQuestionEntities(input?: { onlyApproved?: boolean }) {
           },
         },
       },
+      ideaMappings: {
+        orderBy: [{ isPrimary: "desc" }, { relevanceScore: "desc" }, { createdAt: "asc" }],
+        include: {
+          idea: {
+            select: {
+              id: true,
+              title: true,
+              shortLabel: true,
+              status: true,
+              reuseScore: true,
+              popularityScore: true,
+            },
+          },
+        },
+      },
     },
   });
 }
@@ -81,7 +100,25 @@ function mapQuestionChunkRecommendation(
   };
 }
 
-export function mapQuestionRecord(question: QuestionEntity): IeltsQuestionRecord {
+function mapSpeakingIdeaOption(idea: {
+  id: string;
+  title: string;
+  shortLabel: string;
+  status: "DRAFT" | "ACTIVE" | "ARCHIVED";
+  reuseScore: number;
+  popularityScore: number;
+}): SpeakingIdeaOption {
+  return {
+    id: idea.id,
+    title: idea.title,
+    shortLabel: idea.shortLabel,
+    status: idea.status,
+    reuseScore: idea.reuseScore,
+    popularityScore: idea.popularityScore,
+  };
+}
+
+export function mapQuestionRecord(question: QuestionEntityWithOptionalIdeas): IeltsQuestionRecord {
   return {
     id: question.id,
     skill: question.skill,
@@ -95,6 +132,15 @@ export function mapQuestionRecord(question: QuestionEntity): IeltsQuestionRecord
     notes: question.notes,
     mappingCount: question.chunkMappings.length,
     recommendations: question.chunkMappings.map(mapQuestionChunkRecommendation),
+    ideaRecommendations: (question.ideaMappings ?? []).map((mapping) => ({
+      id: mapping.id,
+      relevanceScore: mapping.relevanceScore,
+      isPrimary: mapping.isPrimary,
+      aiReason: mapping.aiReason,
+      createdAt: mapping.createdAt.toISOString(),
+      updatedAt: mapping.updatedAt.toISOString(),
+      idea: mapSpeakingIdeaOption(mapping.idea),
+    })),
     status: question.status,
     source: question.source,
     aiReason: question.aiReason,
@@ -180,14 +226,31 @@ export async function getQuestionPromptOptions(): Promise<IeltsQuestionPromptOpt
 }
 
 export async function getAdminQuestionBankSnapshot() {
-  const [questions, chunks] = await Promise.all([
+  const [questions, chunks, ideas] = await Promise.all([
     getAdminQuestionBank(),
     getChunkOptionsForQuestionMappings(),
+    prisma.speakingIdea.findMany({
+      where: {
+        status: {
+          in: ["ACTIVE", "DRAFT"],
+        },
+      },
+      orderBy: [{ reuseScore: "desc" }, { popularityScore: "desc" }, { updatedAt: "desc" }],
+      select: {
+        id: true,
+        title: true,
+        shortLabel: true,
+        status: true,
+        reuseScore: true,
+        popularityScore: true,
+      },
+    }),
   ]);
 
   return {
     questions,
     chunks,
+    ideas: ideas.map(mapSpeakingIdeaOption),
   };
 }
 

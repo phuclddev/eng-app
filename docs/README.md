@@ -5,5 +5,6 @@
 - [TESTING.md](./TESTING.md)
 - [API.md](./API.md)
 - [AI_AGENT_GUIDE.md](./AI_AGENT_GUIDE.md)
+- [IDEA_MAP.md](./IDEA_MAP.md)
 - [DEVELOPMENT_LOG.md](./DEVELOPMENT_LOG.md)
 - [DEPLOYMENT.md](./DEPLOYMENT.md)

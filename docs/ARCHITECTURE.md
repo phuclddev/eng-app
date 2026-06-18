@@ -136,6 +136,100 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
 - Learners can browse `/questions`, choose a speaking prompt, and inspect the recommended chunks before answering.
 - Admins can browse `/admin/questions`, search the bank, import questions, generate new questions with AI, and maintain the recommended chunk set for each prompt.
 
+## Speaking Idea Map
+
+- `Speaking Idea Map` is a separate admin-only IELTS content-planning module under:
+  - `/admin/ideas`
+  - `/admin/ideas/new`
+  - `/admin/ideas/[id]`
+  - `/admin/ideas/map`
+- It does not modify IELTS learner practice, IELTS review scheduling, or Family English data paths.
+- `SpeakingIdea` stores the reusable core idea itself:
+  - `title`
+  - `shortLabel`
+  - `descriptionVi`
+  - `descriptionEn`
+  - `popularityScore`
+  - `reuseScore`
+  - `status`
+- `SpeakingIdeaVariant` stores band-oriented phrase variants for one idea.
+- `SpeakingIdeaSupport` stores reusable support blocks such as:
+  - `REASON`
+  - `EXAMPLE`
+  - `RESULT`
+  - `CONTRAST`
+  - `DETAIL`
+  - `PERSONAL_EXPERIENCE`
+- `SpeakingIdeaPattern` stores reusable answer skeletons and optional JSON variables.
+- `SpeakingIdeaQuestionMap` links one idea to one `IeltsQuestion` with:
+  - `relevanceScore`
+  - `isPrimary`
+  - optional `aiReason`
+- `SpeakingIdea.aiReason` stores the AI's short Vietnamese rationale for why a generated idea is broadly reusable.
+- `SpeakingIdea.generatedBatchId` groups one admin AI generation run without affecting learner-facing IELTS logic.
+- The current phase uses server-side admin actions plus transactional nested rewrites:
+  - save the parent `SpeakingIdea`
+  - replace all nested variants
+  - replace all nested supports
+  - replace all nested patterns
+  - replace all linked question mappings
+- Validation rejects:
+  - duplicate question links
+  - more than one primary question mapping
+  - malformed `variablesJson`
+- Archiving an idea updates `SpeakingIdea.status` only; it does not delete linked IELTS questions or affect learner-facing question-bank behavior.
+- The visual map view is intentionally client-side and schema-free:
+  - root nodes are `SpeakingIdea` records
+  - branch groups show variants, support points, and linked questions
+  - node size is derived from `reuseScore`, `popularityScore`, and linked-question count
+  - filters are applied in a pure transformation helper before rendering so the view stays testable and stable without introducing a graph dependency
+- AI generation for reusable ideas is admin-only and flows through `POST /api/admin/ideas/generate`:
+  - loads a bounded snapshot of existing idea titles and short labels
+  - asks AI for reusable IELTS Speaking reasoning patterns rather than one-off prompts
+  - dedupes by normalized `title` and normalized `shortLabel`
+  - saves accepted ideas as `DRAFT`
+  - does not auto-create `SpeakingIdeaQuestionMap` rows in this phase
+- Phase 4 adds a two-way mapping workflow between reusable ideas and the IELTS Question Bank:
+  - the idea detail editor can add, remove, reprioritize, and AI-suggest linked questions
+  - the admin question detail drawer can add, remove, reprioritize, and AI-suggest linked ideas
+  - both views operate on the same `SpeakingIdeaQuestionMap` table
+- Manual mapping flows are admin-only and use dedicated API routes:
+  - `POST /api/admin/ideas/map-question`
+  - `PATCH /api/admin/ideas/question-map/:id`
+  - `DELETE /api/admin/ideas/question-map/:id`
+- AI-assisted mapping is admin-only and uses `POST /api/admin/ideas/suggest-question-mapping`:
+  - `QUESTION_TO_IDEAS` loads one question plus a bounded pool of unmapped candidate ideas
+  - `IDEA_TO_QUESTIONS` loads one reusable idea plus a bounded pool of unmapped approved/suggested questions
+  - the prompt asks for reusable reasoning alignment rather than surface word overlap
+  - suggestions are filtered back against the server-loaded candidate ids before the UI sees them
+  - suggestions are never auto-saved
+- Primary mapping behavior is enforced server-side:
+  - one question can have many linked ideas
+  - at most one linked idea per question may be marked primary
+  - promoting one mapping to primary demotes the previous primary mapping for that question
+- Phase 5 adds admin-only answer generation from a selected `question + idea` pair:
+  - Question Bank detail can generate an answer from any linked/recommended idea
+  - Idea detail can generate an answer for any linked question
+  - the generation route is `POST /api/admin/ideas/generate-answer`
+- The answer-generation prompt is separate from the generic sample-answer prompt:
+  - it injects reusable idea descriptions, band variants, support points, answer patterns, and the optional question-mapping rationale
+  - it still uses a bounded shortlist from the existing Chunk Library so the AI can naturally reuse useful chunks without forcing them
+  - it explicitly asks for IELTS Speaking output, never Writing-style prose
+- Current implementation is `generate-only` rather than persisted:
+  - the server returns Markdown with `Sample Answer`, `Idea Used`, `Chunks / Phrases Used`, `Vietnamese Explanation`, and `Reusable Pattern`
+  - the UI renders it with the shared safe Markdown component
+- Phase 6 adds an admin-only coverage dashboard at `/admin/ideas/coverage`:
+  - summary cards show total active ideas, mapped questions, unmapped questions, and ideas with no linked questions
+  - `topIdeas` is derived from active ideas using `reuseScore`, `popularityScore`, and linked-question count
+  - `weakTopics` is derived from approved IELTS speaking questions grouped by topic and compared against active idea mappings
+  - `coverageByPart` reports `PART_1`, `PART_2`, and `PART_3` mapped vs unmapped counts without changing learner-facing question-bank behavior
+  - unmapped-question actions stay admin-only and call the existing AI mapping suggestion route instead of auto-saving anything
+  - weak-topic actions reuse the existing AI idea generation route to seed more `DRAFT` ideas for that topic
+- Coverage intentionally does not persist generated-answer history in this phase:
+  - `generatedAnswersCount` currently reports `0`
+  - the UI labels this clearly as a generate-only phase so admins do not mistake it for saved analytics
+  - admin can copy or regenerate the answer, but the result is not stored in a database table yet in this phase
+
 ### Question lifecycle and AI generation
 
 - `IeltsQuestion.status` is one of `SUGGESTED`, `APPROVED`, or `ARCHIVED`. All learner-facing reads (`/questions`, Speaking Simulator prompt options, Translation Recall script generation) filter to `APPROVED` only.

@@ -25,6 +25,8 @@ import type {
   FAMILY_TARGET_LEVELS,
   CONFIDENCE_LEVELS,
   EXERCISE_TYPES,
+  SPEAKING_IDEA_STATUSES,
+  SPEAKING_IDEA_SUPPORT_TYPES,
   PRACTICE_MODES,
   USER_ROLES,
   USER_STATUSES,
@@ -58,6 +60,8 @@ export type FamilySpeakerRole = (typeof FAMILY_SPEAKER_ROLES)[number];
 export type FamilyTargetLevel = (typeof FAMILY_TARGET_LEVELS)[number];
 export type ExerciseType = (typeof EXERCISE_TYPES)[number];
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
+export type GeneratedAnswerLength =
+  (typeof TRANSLATION_FROM_QUESTION_LENGTHS)[number];
 export type PracticeLearningStage =
   | "RECOGNITION"
   | "RECALL"
@@ -186,8 +190,19 @@ export type QuestionChunkRecommendation = {
   };
 };
 
+export type SpeakingIdeaOption = {
+  id: string;
+  title: string;
+  shortLabel: string;
+  status: SpeakingIdeaStatus;
+  reuseScore: number;
+  popularityScore: number;
+};
+
 export type IeltsQuestionStatus = "SUGGESTED" | "APPROVED" | "ARCHIVED";
 export type IeltsQuestionSource = "MANUAL" | "CSV_IMPORT" | "AI_GENERATED";
+export type SpeakingIdeaStatus = (typeof SPEAKING_IDEA_STATUSES)[number];
+export type SpeakingIdeaSupportType = (typeof SPEAKING_IDEA_SUPPORT_TYPES)[number];
 
 export type IeltsQuestionRecord = {
   id: string;
@@ -202,6 +217,15 @@ export type IeltsQuestionRecord = {
   notes: string | null;
   mappingCount: number;
   recommendations: QuestionChunkRecommendation[];
+  ideaRecommendations?: Array<{
+    id: string;
+    relevanceScore: number;
+    isPrimary: boolean;
+    aiReason: string | null;
+    createdAt: string;
+    updatedAt: string;
+    idea: SpeakingIdeaOption;
+  }>;
   status: IeltsQuestionStatus;
   source: IeltsQuestionSource;
   aiReason: string | null;
@@ -228,6 +252,148 @@ export type IeltsQuestionPromptOption = {
   subTopic: string | null;
   prompt: string;
   targetBand: number;
+};
+
+export type SpeakingIdeaQuestionOption = {
+  id: string;
+  taskType: IeltsTaskType;
+  topic: string;
+  subTopic: string | null;
+  prompt: string;
+  targetBand: number;
+  status: IeltsQuestionStatus;
+};
+
+export type SpeakingIdeaVariantRecord = {
+  id: string;
+  bandLevel: number;
+  phrase: string;
+  exampleSentence: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SpeakingIdeaSupportRecord = {
+  id: string;
+  supportType: SpeakingIdeaSupportType;
+  text: string;
+  example: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SpeakingIdeaPatternRecord = {
+  id: string;
+  patternText: string;
+  variablesJson: unknown | null;
+  exampleAnswer: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SpeakingIdeaQuestionMapRecord = {
+  id: string;
+  relevanceScore: number;
+  isPrimary: boolean;
+  aiReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  speakingQuestion: SpeakingIdeaQuestionOption;
+};
+
+export type IdeaQuestionMappingSuggestion = {
+  targetId: string;
+  relevanceScore: number;
+  isPrimary: boolean;
+  aiReason: string | null;
+};
+
+export type SpeakingIdeaRecord = {
+  id: string;
+  title: string;
+  shortLabel: string;
+  descriptionVi: string;
+  descriptionEn: string;
+  popularityScore: number;
+  reuseScore: number;
+  status: SpeakingIdeaStatus;
+  aiReason: string | null;
+  generatedBatchId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  variants: SpeakingIdeaVariantRecord[];
+  supports: SpeakingIdeaSupportRecord[];
+  patterns: SpeakingIdeaPatternRecord[];
+  questionMaps: SpeakingIdeaQuestionMapRecord[];
+};
+
+export type SpeakingIdeaGenerationSummary = {
+  batchId: string;
+  created: number;
+  skippedDuplicates: number;
+  parseErrors: string[];
+  warnings: string[];
+  ideas: SpeakingIdeaRecord[];
+};
+
+export type SpeakingIdeaCoverageTopIdea = {
+  id: string;
+  title: string;
+  shortLabel: string;
+  reuseScore: number;
+  popularityScore: number;
+  linkedQuestionsCount: number;
+  generatedAnswersCount: number;
+};
+
+export type SpeakingIdeaCoverageQuestion = {
+  id: string;
+  taskType: IeltsTaskType;
+  topic: string;
+  subTopic: string | null;
+  prompt: string;
+  targetBand: number;
+};
+
+export type SpeakingIdeaCoverageWeakTopic = {
+  topic: string;
+  questionCount: number;
+  mappedCount: number;
+  coveragePercent: number;
+};
+
+export type SpeakingIdeaCoverageByPart = {
+  taskType: IeltsTaskType;
+  questionCount: number;
+  mappedCount: number;
+  unmappedCount: number;
+  coveragePercent: number;
+};
+
+export type SpeakingIdeaCoverageSnapshot = {
+  totalActiveIdeas: number;
+  totalMappedQuestions: number;
+  questionsWithoutIdeas: number;
+  ideasWithNoLinkedQuestions: number;
+  topIdeas: SpeakingIdeaCoverageTopIdea[];
+  unmappedQuestions: SpeakingIdeaCoverageQuestion[];
+  weakTopics: SpeakingIdeaCoverageWeakTopic[];
+  coverageByPart: SpeakingIdeaCoverageByPart[];
+};
+
+export type SpeakingIdeaGeneratedAnswerRecord = {
+  questionId: string;
+  ideaId: string;
+  targetBand: number;
+  length: GeneratedAnswerLength;
+  answerMarkdown: string;
+  generatedAt: string;
+};
+
+export type SpeakingIdeaGeneratedAnswerResponse = {
+  answer: SpeakingIdeaGeneratedAnswerRecord;
+  selectedChunkCount: number;
+  usedChunks: AiSampleAnswerUsedChunk[];
 };
 
 export type DashboardSnapshot = {
