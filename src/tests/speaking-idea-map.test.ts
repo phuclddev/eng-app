@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSpeakingIdeaMindMap } from "@/lib/speaking-idea-map";
+import { buildSpeakingIdeaMindMapScene } from "@/lib/speaking-idea-map";
 import type { SpeakingIdeaRecord } from "@/lib/types";
 
 function createIdea(overrides: Partial<SpeakingIdeaRecord>): SpeakingIdeaRecord {
@@ -37,7 +37,16 @@ function createIdea(overrides: Partial<SpeakingIdeaRecord>): SpeakingIdeaRecord 
         updatedAt: new Date("2026-06-16T00:00:00.000Z").toISOString(),
       },
     ],
-    patterns: [],
+    patterns: [
+      {
+        id: "pattern-1",
+        patternText: "People choose X because it saves time.",
+        exampleAnswer: "People choose public transport because it saves time in traffic.",
+        variablesJson: null,
+        createdAt: new Date("2026-06-16T00:00:00.000Z").toISOString(),
+        updatedAt: new Date("2026-06-16T00:00:00.000Z").toISOString(),
+      },
+    ],
     questionMaps: [
       {
         id: "map-1",
@@ -61,29 +70,58 @@ function createIdea(overrides: Partial<SpeakingIdeaRecord>): SpeakingIdeaRecord 
   };
 }
 
-describe("buildSpeakingIdeaMindMap", () => {
-  it("builds visual nodes with derived size and branch data", () => {
-    const result = buildSpeakingIdeaMindMap([createIdea({})]);
+describe("buildSpeakingIdeaMindMapScene", () => {
+  it("builds clean overview nodes without child detail explosion", () => {
+    const result = buildSpeakingIdeaMindMapScene({
+      ideas: [createIdea({})],
+      mode: "OVERVIEW",
+    });
 
     expect(result.topicOptions).toEqual(["Daily routine"]);
     expect(result.nodes).toHaveLength(1);
+    expect(result.edges).toHaveLength(0);
     expect(result.nodes[0]).toMatchObject({
-      title: "Saving time",
-      questionCount: 1,
+      kind: "idea",
+      label: "Saving time",
       nodeSize: "large",
     });
-    expect(result.nodes[0].variants[0].label).toContain("Band 6.5");
-    expect(result.nodes[0].supports[0].supportType).toBe("REASON");
-    expect(result.nodes[0].questions[0].taskType).toBe("PART_1");
   });
 
-  it("filters by topic, status, minimum reuse score, and question part", () => {
+  it("builds a full single-idea focus scene with branch nodes and edges", () => {
+    const result = buildSpeakingIdeaMindMapScene({
+      ideas: [createIdea({})],
+      mode: "FOCUS",
+      selectedIdeaId: "idea-1",
+    });
+
+    expect(result.selectedIdeaId).toBe("idea-1");
+    expect(result.edges.length).toBeGreaterThan(0);
+    expect(result.nodes.some((node) => node.kind === "branch" && node.label === "Band variants")).toBe(true);
+    expect(result.nodes.some((node) => node.kind === "variant")).toBe(true);
+    expect(result.nodes.some((node) => node.kind === "support")).toBe(true);
+    expect(result.nodes.some((node) => node.kind === "question")).toBe(true);
+    expect(result.nodes.some((node) => node.kind === "pattern")).toBe(true);
+  });
+
+  it("keeps focus mode empty until an idea is explicitly selected", () => {
+    const result = buildSpeakingIdeaMindMapScene({
+      ideas: [createIdea({})],
+      mode: "FOCUS",
+    });
+
+    expect(result.selectedIdeaId).toBeNull();
+    expect(result.nodes).toHaveLength(0);
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it("filters by search, topic, status, minimum reuse score, and question part", () => {
     const ideas = [
       createIdea({}),
       createIdea({
         id: "idea-2",
         title: "Reducing stress",
         shortLabel: "Stress",
+        descriptionEn: "Talk about relaxation and lowering mental pressure.",
         reuseScore: 2,
         status: "DRAFT",
         questionMaps: [
@@ -108,14 +146,39 @@ describe("buildSpeakingIdeaMindMap", () => {
       }),
     ];
 
-    const result = buildSpeakingIdeaMindMap(ideas, {
-      topic: "Daily routine",
-      status: "ACTIVE",
-      minReuseScore: 4,
-      questionPart: "PART_1",
+    const result = buildSpeakingIdeaMindMapScene({
+      ideas,
+      mode: "OVERVIEW",
+      filters: {
+        search: "time efficiency",
+        topic: "Daily routine",
+        status: "ACTIVE",
+        minReuseScore: 4,
+        questionPart: "PART_1",
+      },
     });
 
     expect(result.nodes).toHaveLength(1);
     expect(result.nodes[0].id).toBe("idea-1");
+  });
+
+  it("limits overview node count and reports hidden ideas", () => {
+    const ideas = Array.from({ length: 5 }, (_item, index) =>
+      createIdea({
+        id: `idea-${index + 1}`,
+        title: `Idea ${index + 1}`,
+        shortLabel: `I${index + 1}`,
+      }),
+    );
+
+    const result = buildSpeakingIdeaMindMapScene({
+      ideas,
+      mode: "OVERVIEW",
+      overviewLimit: 3,
+    });
+
+    expect(result.nodes).toHaveLength(3);
+    expect(result.hiddenIdeaCount).toBe(2);
+    expect(result.nodes.every((node) => node.kind === "idea")).toBe(true);
   });
 });

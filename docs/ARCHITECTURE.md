@@ -180,9 +180,11 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
 - Archiving an idea updates `SpeakingIdea.status` only; it does not delete linked IELTS questions or affect learner-facing question-bank behavior.
 - The visual map view is intentionally client-side and schema-free:
   - root nodes are `SpeakingIdea` records
-  - branch groups show variants, support points, and linked questions
+  - overview mode renders only root nodes to keep large datasets readable
+  - single-idea focus mode expands branch groups for variants, support points, linked questions, and answer patterns
   - node size is derived from `reuseScore`, `popularityScore`, and linked-question count
-  - filters are applied in a pure transformation helper before rendering so the view stays testable and stable without introducing a graph dependency
+  - filters are applied in a pure transformation helper before rendering so the scene stays testable
+  - the renderer now uses `@xyflow/react` for a real pan/zoom canvas with fit-view controls instead of a static card grid
 - AI generation for reusable ideas is admin-only and flows through `POST /api/admin/ideas/generate`:
   - loads a bounded snapshot of existing idea titles and short labels
   - asks AI for reusable IELTS Speaking reasoning patterns rather than one-off prompts

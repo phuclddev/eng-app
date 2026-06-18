@@ -26,6 +26,7 @@
     "@auth/prisma-adapter": "^2.11.2",
     "@prisma/adapter-mariadb": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@xyflow/react": "^12.11.0",
     "antd": "^6.4.3",
     "bcrypt": "^6.0.0",
     "dayjs": "^1.11.21",
