@@ -273,23 +273,25 @@
 - Seed runs never overwrite existing admin-edited `SpeakingIdea` rows; they only create new rows and leave existing nested content untouched.
 - New idea-pack rows are created as `ACTIVE` and grouped under `generatedBatchId = "seed-idea-pack-v1"`.
 - Added seed helper tests and dedicated docs in [docs/IDEA_MAP.md](/Users/phucluu/Downloads/all_repo/eng-app/docs/IDEA_MAP.md).
-- Replaced the broken `/admin/ideas/map` card grid with a real `React Flow` mind map canvas.
-- Added two admin viewing modes:
-  - `Overview` for clean root-node coverage scanning
-  - `Single Idea Focus` for full branch memorization
-- Added canvas interactions:
+- Rebuilt `/admin/ideas/map` into a memorization-oriented `React Flow` canvas instead of the old squeezed card grid.
+- Added two default map behaviors:
+  - `Overview` shows only core reusable ideas as clean root nodes
+  - clicking one idea switches to `Focus` mode for a single expanded idea
+- Added a deterministic radial branch layout in `Focus` mode:
+  - root idea in the center
+  - compact branches for `Simple version`, `Band upgrade`, `Supporting logic`, `Answer pattern`, `Useful chunks`, `Applicable questions`, and `Sample answers`
+  - bounded leaf counts so the canvas stays readable
+- Added `Memorize View` to compress one idea into:
+  - `1. Main idea`
+  - `2. Support`
+  - `3. Result`
+- Added open-canvas interactions:
   - zoom in/out
-  - pan
+  - drag-to-pan
   - fit view
   - reset layout
-- Added real branch rendering for:
-  - band variants
-  - support points
-  - linked questions
-  - answer patterns
-- Added pure scene-transformation coverage for overview filtering, focus layout, and overview node limiting so the map stays testable without browser-only assertions.
-  - `# Chunks / Phrases Used`
-  - `# Vietnamese Explanation`
+  - back to overview
+- Added scene-transformation tests for overview filtering, focus branching, memorize view generation, and leaf limiting so the map stays testable without relying only on browser assertions.
   - `# Reusable Pattern`
 - Added fallback normalization so if the AI returns plain text instead of the expected sectioned Markdown, the server wraps it into the required headings instead of breaking the admin flow.
 - Phase 5 is intentionally generate-only for now: answers are returned to the UI for copy/review/regeneration, but are not yet persisted in a new DB table.

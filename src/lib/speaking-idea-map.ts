@@ -1,6 +1,5 @@
 import type {
   IeltsTaskType,
-  SpeakingIdeaQuestionMapRecord,
   SpeakingIdeaRecord,
   SpeakingIdeaStatus,
 } from "@/lib/types";
@@ -15,13 +14,17 @@ export type SpeakingIdeaMapFilters = {
 
 export type SpeakingIdeaMapMode = "OVERVIEW" | "FOCUS";
 export type SpeakingIdeaMapNodeSize = "small" | "medium" | "large";
-export type SpeakingIdeaMapNodeKind =
-  | "idea"
-  | "branch"
-  | "variant"
+export type SpeakingIdeaMapNodeKind = "root" | "idea" | "branch" | "leaf";
+export type SpeakingIdeaMapLeafCategory =
+  | "simple"
+  | "band"
   | "support"
+  | "pattern"
+  | "chunk"
   | "question"
-  | "pattern";
+  | "sample"
+  | "memorize"
+  | "cta";
 
 export type SpeakingIdeaMapGraphNode = {
   id: string;
@@ -39,6 +42,7 @@ export type SpeakingIdeaMapGraphNode = {
     y: number;
   };
   accentColor: string;
+  category?: SpeakingIdeaMapLeafCategory;
   meta?: Record<string, string | number | boolean | null | undefined>;
 };
 
@@ -46,7 +50,6 @@ export type SpeakingIdeaMapGraphEdge = {
   id: string;
   source: string;
   target: string;
-  label?: string;
 };
 
 export type SpeakingIdeaMapScene = {
@@ -70,35 +73,150 @@ type BuildSceneInput = {
   filters?: SpeakingIdeaMapFilters;
   mode?: SpeakingIdeaMapMode;
   selectedIdeaId?: string | null;
+  memorizeView?: boolean;
   overviewLimit?: number;
 };
 
+type BranchLeaf = {
+  id: string;
+  label: string;
+  secondaryLabel?: string;
+  tooltip?: string;
+  href?: string;
+  category: SpeakingIdeaMapLeafCategory;
+};
+
+type BranchSection = {
+  id: string;
+  label: string;
+  shortHint?: string;
+  accentColor: string;
+  leafCategory: SpeakingIdeaMapLeafCategory;
+  leaves: BranchLeaf[];
+  branchPosition: { x: number; y: number };
+  leafOrigin: { x: number; y: number };
+  leafGapY: number;
+};
+
 const OVERVIEW_NODE_DIMENSIONS = {
-  small: { width: 250, height: 124 },
-  medium: { width: 292, height: 142 },
-  large: { width: 336, height: 164 },
+  small: { width: 220, height: 112 },
+  medium: { width: 248, height: 122 },
+  large: { width: 280, height: 132 },
 } as const;
 
-const DETAIL_NODE_DIMENSIONS = {
-  idea: {
-    small: { width: 300, height: 148 },
-    medium: { width: 340, height: 168 },
-    large: { width: 388, height: 188 },
-  },
-  branch: { width: 170, height: 68 },
-  variant: { width: 250, height: 92 },
-  support: { width: 280, height: 110 },
-  question: { width: 300, height: 114 },
-  pattern: { width: 300, height: 106 },
+const ROOT_DIMENSIONS = {
+  small: { width: 300, height: 128 },
+  medium: { width: 344, height: 144 },
+  large: { width: 392, height: 162 },
 } as const;
+
+const BRANCH_DIMENSIONS = { width: 168, height: 58 } as const;
+const LEAF_DIMENSIONS = { width: 270, height: 78 } as const;
+
+const BRANCH_LAYOUT = [
+  {
+    key: "simple",
+    label: "Simple version",
+    shortHint: "core phrases",
+    accentColor: "#0f766e",
+    leafCategory: "simple" as const,
+    branchPosition: { x: -360, y: -230 },
+    leafOrigin: { x: -720, y: -260 },
+    leafGapY: 92,
+  },
+  {
+    key: "band",
+    label: "Band upgrade",
+    shortHint: "stronger wording",
+    accentColor: "#0f766e",
+    leafCategory: "band" as const,
+    branchPosition: { x: -360, y: 150 },
+    leafOrigin: { x: -720, y: 120 },
+    leafGapY: 92,
+  },
+  {
+    key: "support",
+    label: "Supporting logic",
+    shortHint: "reasoning chain",
+    accentColor: "#7c3aed",
+    leafCategory: "support" as const,
+    branchPosition: { x: 0, y: -330 },
+    leafOrigin: { x: -140, y: -560 },
+    leafGapY: 88,
+  },
+  {
+    key: "pattern",
+    label: "Answer pattern",
+    shortHint: "reusable frame",
+    accentColor: "#be185d",
+    leafCategory: "pattern" as const,
+    branchPosition: { x: -70, y: 330 },
+    leafOrigin: { x: -340, y: 420 },
+    leafGapY: 88,
+  },
+  {
+    key: "chunk",
+    label: "Useful chunks",
+    shortHint: "memorize these",
+    accentColor: "#1d4ed8",
+    leafCategory: "chunk" as const,
+    branchPosition: { x: 390, y: -250 },
+    leafOrigin: { x: 590, y: -300 },
+    leafGapY: 88,
+  },
+  {
+    key: "question",
+    label: "Applicable questions",
+    shortHint: "where to use it",
+    accentColor: "#b45309",
+    leafCategory: "question" as const,
+    branchPosition: { x: 440, y: 20 },
+    leafOrigin: { x: 670, y: -30 },
+    leafGapY: 92,
+  },
+  {
+    key: "sample",
+    label: "Sample answers",
+    shortHint: "use in speech",
+    accentColor: "#2563eb",
+    leafCategory: "sample" as const,
+    branchPosition: { x: 360, y: 310 },
+    leafOrigin: { x: 610, y: 260 },
+    leafGapY: 92,
+  },
+] as const;
 
 function normalizeFilterValue(value?: string | null) {
   return value?.trim().toLowerCase() ?? "";
 }
 
-function getQuestionLabel(questionMap: SpeakingIdeaQuestionMapRecord) {
-  const { speakingQuestion } = questionMap;
-  return `${speakingQuestion.taskType.replace("_", " ")} · ${speakingQuestion.topic}`;
+function normalizeWhitespace(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function truncate(value: string, maxLength = 92) {
+  const normalized = normalizeWhitespace(value);
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength - 1).trim()}…`;
+}
+
+function sentenceCase(value: string) {
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) {
+    return normalized;
+  }
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function splitIntoMemorableBits(value: string) {
+  return normalizeWhitespace(value)
+    .split(/[.;]|,| - | \| /g)
+    .map((part) => sentenceCase(part))
+    .filter((part) => part.length >= 8 && part.length <= 120);
 }
 
 function getNodeWeight(idea: SpeakingIdeaRecord) {
@@ -117,23 +235,60 @@ function getNodeSize(weight: number): SpeakingIdeaMapNodeSize {
   return "small";
 }
 
-function getAccentColor(kind: SpeakingIdeaMapNodeKind) {
-  switch (kind) {
-    case "idea":
-      return "#1d4ed8";
-    case "branch":
-      return "#475569";
-    case "variant":
-      return "#0f766e";
-    case "support":
-      return "#7c3aed";
-    case "question":
-      return "#b45309";
-    case "pattern":
-      return "#be185d";
-    default:
-      return "#334155";
+function getAccentColor(kind: SpeakingIdeaMapNodeKind, category?: SpeakingIdeaMapLeafCategory) {
+  if (kind === "root") {
+    return "#1e293b";
   }
+
+  if (kind === "branch") {
+    switch (category) {
+      case "simple":
+      case "band":
+        return "#0f766e";
+      case "support":
+      case "memorize":
+        return "#7c3aed";
+      case "pattern":
+        return "#be185d";
+      case "chunk":
+        return "#1d4ed8";
+      case "question":
+        return "#b45309";
+      case "sample":
+        return "#2563eb";
+      case "cta":
+        return "#475569";
+      default:
+        return "#475569";
+    }
+  }
+
+  if (kind === "leaf") {
+    return getAccentColor("branch", category);
+  }
+
+  return "#1d4ed8";
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values.map((value) => normalizeWhitespace(value)).filter(Boolean))];
+}
+
+function dedupeLeaves(leaves: BranchLeaf[]) {
+  const seen = new Set<string>();
+
+  return leaves.filter((leaf) => {
+    const key = normalizeFilterValue(`${leaf.label} ${leaf.secondaryLabel ?? ""}`);
+    if (!key || seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function withLimit(leaves: BranchLeaf[], limit: number) {
+  return dedupeLeaves(leaves).slice(0, limit);
 }
 
 function matchesTopic(idea: SpeakingIdeaRecord, topic?: string) {
@@ -177,6 +332,7 @@ function matchesSearch(idea: SpeakingIdeaRecord, search?: string) {
     idea.shortLabel,
     idea.descriptionVi,
     idea.descriptionEn,
+    ...idea.variants.map((variant) => variant.phrase),
     ...idea.supports.map((support) => support.text),
     ...idea.patterns.map((pattern) => pattern.patternText),
     ...idea.questionMaps.map((questionMap) => questionMap.speakingQuestion.prompt),
@@ -227,216 +383,384 @@ function applyFilters(ideas: SpeakingIdeaRecord[], filters: SpeakingIdeaMapFilte
 }
 
 function buildOverviewNodes(ideas: SpeakingIdeaRecord[]) {
-  const columns = Math.max(1, Math.ceil(Math.sqrt(ideas.length)));
-  const nodes: SpeakingIdeaMapGraphNode[] = [];
+  const radiusBase = 320;
 
-  ideas.forEach((idea, index) => {
-    const row = Math.floor(index / columns);
-    const column = index % columns;
+  return ideas.map((idea, index) => {
     const nodeSize = getNodeSize(getNodeWeight(idea));
     const dimensions = OVERVIEW_NODE_DIMENSIONS[nodeSize];
-    const topics = [...new Set(idea.questionMaps.map((questionMap) => questionMap.speakingQuestion.topic))]
-      .slice(0, 3)
+    const ring = Math.floor(index / 8);
+    const radius = radiusBase + ring * 220;
+    const angle = ((index % 8) / 8) * Math.PI * 2 - Math.PI / 2;
+    const x = Math.round(Math.cos(angle) * radius);
+    const y = Math.round(Math.sin(angle) * radius);
+    const topics = uniqueStrings(
+      idea.questionMaps.map((questionMap) => questionMap.speakingQuestion.topic),
+    )
+      .slice(0, 2)
       .join(" • ");
-    const questionParts = [
-      ...new Set(idea.questionMaps.map((questionMap) => questionMap.speakingQuestion.taskType)),
-    ].join(" / ");
 
-    nodes.push({
+    return {
       id: idea.id,
-      kind: "idea",
+      kind: "idea" as const,
       label: idea.title,
       secondaryLabel: idea.shortLabel,
-      body: idea.descriptionEn,
+      body: undefined,
       href: `/admin/ideas/${idea.id}`,
       tooltip: `${idea.descriptionVi}\n\nLinked questions: ${idea.questionMaps.length}`,
       nodeSize,
       width: dimensions.width,
       height: dimensions.height,
       position: {
-        x: column * 390,
-        y: row * 230,
+        x,
+        y,
       },
       accentColor: getAccentColor("idea"),
       meta: {
-        reuseScore: idea.reuseScore,
-        popularityScore: idea.popularityScore,
-        linkedQuestions: idea.questionMaps.length,
+        reuse: `${idea.reuseScore}/5 reuse`,
+        popularity: `${idea.popularityScore}/5 popularity`,
+        questions: `${idea.questionMaps.length} question(s)`,
         topics,
-        questionParts,
       },
-    });
+    } satisfies SpeakingIdeaMapGraphNode;
   });
-
-  return nodes;
 }
 
-function createBranchNode(
-  id: string,
+function buildCallToActionLeaf(
+  idea: SpeakingIdeaRecord,
   label: string,
-  position: { x: number; y: number },
-  count: number,
-) {
+  category: SpeakingIdeaMapLeafCategory = "cta",
+): BranchLeaf {
   return {
-    id,
-    kind: "branch" as const,
+    id: `${idea.id}-${label.toLowerCase().replace(/\s+/g, "-")}`,
     label,
-    secondaryLabel: `${count} item${count === 1 ? "" : "s"}`,
-    nodeSize: "medium" as const,
-    width: DETAIL_NODE_DIMENSIONS.branch.width,
-    height: DETAIL_NODE_DIMENSIONS.branch.height,
-    position,
-    accentColor: getAccentColor("branch"),
-    meta: {
-      count,
-    },
+    secondaryLabel: "Open idea detail",
+    tooltip: "Fill in this branch from the idea editor or AI helpers.",
+    href: `/admin/ideas/${idea.id}`,
+    category,
   };
 }
 
-function getVariantBody(phrase: string, exampleSentence: string) {
-  return `${phrase}\n${exampleSentence}`;
+function buildSimpleLeaves(idea: SpeakingIdeaRecord) {
+  const variants = [...idea.variants].sort((left, right) => left.bandLevel - right.bandLevel);
+  const leaves = variants.map((variant) => ({
+    id: variant.id,
+    label: truncate(variant.phrase, 64),
+    secondaryLabel: `Band ${variant.bandLevel}`,
+    tooltip: variant.exampleSentence,
+    category: "simple" as const,
+  }));
+
+  return leaves.length > 0
+    ? withLimit(leaves, 5)
+    : [buildCallToActionLeaf(idea, "Add simple variants", "simple")];
 }
 
-function getSupportBody(text: string, example: string | null) {
-  return example ? `${text}\nExample: ${example}` : text;
+function buildBandUpgradeLeaves(idea: SpeakingIdeaRecord) {
+  const variants = [...idea.variants].sort((left, right) => right.bandLevel - left.bandLevel);
+  const leaves = variants.map((variant) => ({
+    id: `${variant.id}-upgrade`,
+    label: truncate(variant.phrase, 72),
+    secondaryLabel: `Band ${variant.bandLevel}`,
+    tooltip: variant.exampleSentence,
+    category: "band" as const,
+  }));
+
+  return leaves.length > 0
+    ? withLimit(leaves, 5)
+    : [buildCallToActionLeaf(idea, "Add band upgrades", "band")];
 }
 
-function getQuestionBody(questionMap: SpeakingIdeaQuestionMapRecord) {
-  const { speakingQuestion } = questionMap;
-  const part = speakingQuestion.taskType.replace("_", " ");
-  return `${part} · ${speakingQuestion.topic}\n${speakingQuestion.prompt}`;
+function buildSupportLeaves(idea: SpeakingIdeaRecord) {
+  const leaves = idea.supports.flatMap((support) => {
+    const base = splitIntoMemorableBits(support.text).map((bit, index) => ({
+      id: `${support.id}-text-${index}`,
+      label: truncate(bit, 90),
+      secondaryLabel: support.supportType.replaceAll("_", " "),
+      tooltip: support.example ?? support.text,
+      category: "support" as const,
+    }));
+
+    const example = support.example
+      ? splitIntoMemorableBits(support.example).slice(0, 1).map((bit, index) => ({
+          id: `${support.id}-example-${index}`,
+          label: truncate(bit, 90),
+          secondaryLabel: "Example",
+          tooltip: support.example ?? support.text,
+          category: "support" as const,
+        }))
+      : [];
+
+    return [...base, ...example];
+  });
+
+  return leaves.length > 0
+    ? withLimit(leaves, 6)
+    : [buildCallToActionLeaf(idea, "Add support logic", "support")];
 }
 
-function getPatternBody(patternText: string, exampleAnswer: string) {
-  return `${patternText}\n${exampleAnswer}`;
+function buildPatternLeaves(idea: SpeakingIdeaRecord) {
+  const leaves = idea.patterns.flatMap((pattern) => [
+    {
+      id: `${pattern.id}-pattern`,
+      label: truncate(pattern.patternText, 98),
+      secondaryLabel: "Pattern",
+      tooltip: pattern.exampleAnswer,
+      category: "pattern" as const,
+    },
+    {
+      id: `${pattern.id}-example`,
+      label: truncate(pattern.exampleAnswer, 104),
+      secondaryLabel: "Example use",
+      tooltip: pattern.exampleAnswer,
+      category: "pattern" as const,
+    },
+  ]);
+
+  return leaves.length > 0
+    ? withLimit(leaves, 6)
+    : [buildCallToActionLeaf(idea, "Add answer patterns", "pattern")];
 }
 
-function buildFocusScene(idea: SpeakingIdeaRecord): Pick<SpeakingIdeaMapScene, "nodes" | "edges" | "selectedIdeaId" | "selectedIdeaTitle" | "hiddenIdeaCount"> {
+function buildUsefulChunkLeaves(idea: SpeakingIdeaRecord) {
+  const rawPhrases = [
+    ...idea.variants.map((variant) => variant.phrase),
+    ...idea.patterns.flatMap((pattern) => splitIntoMemorableBits(pattern.patternText)),
+    ...idea.supports.flatMap((support) => splitIntoMemorableBits(support.text)),
+  ];
+
+  const leaves = uniqueStrings(rawPhrases)
+    .filter((phrase) => phrase.length <= 64)
+    .map((phrase, index) => ({
+      id: `${idea.id}-chunk-${index}`,
+      label: truncate(phrase, 64),
+      tooltip: phrase,
+      category: "chunk" as const,
+    }));
+
+  return leaves.length > 0
+    ? withLimit(leaves, 6)
+    : [buildCallToActionLeaf(idea, "Add useful chunks", "chunk")];
+}
+
+function buildQuestionLeaves(idea: SpeakingIdeaRecord) {
+  const leaves = idea.questionMaps.map((questionMap) => ({
+    id: questionMap.id,
+    label: truncate(questionMap.speakingQuestion.prompt, 104),
+    secondaryLabel: `${questionMap.speakingQuestion.taskType.replace("_", " ")} · ${questionMap.speakingQuestion.topic}`,
+    tooltip: questionMap.aiReason ?? questionMap.speakingQuestion.prompt,
+    href: `/admin/questions?questionId=${questionMap.speakingQuestion.id}`,
+    category: "question" as const,
+  }));
+
+  return leaves.length > 0
+    ? withLimit(leaves, 5)
+    : [buildCallToActionLeaf(idea, "Map idea to questions", "question")];
+}
+
+function buildSampleLeaves(idea: SpeakingIdeaRecord) {
+  const leaves = idea.patterns.map((pattern) => ({
+    id: `${pattern.id}-sample`,
+    label: truncate(pattern.exampleAnswer, 108),
+    secondaryLabel: "Sample answer line",
+    tooltip: pattern.exampleAnswer,
+    category: "sample" as const,
+  }));
+
+  return leaves.length > 0
+    ? withLimit(leaves, 3)
+    : [buildCallToActionLeaf(idea, "Generate sample answers", "sample")];
+}
+
+function buildMemorizeLeaves(idea: SpeakingIdeaRecord) {
+  const mainIdea =
+    buildSimpleLeaves(idea)[0]?.label ?? truncate(idea.shortLabel || idea.title, 72);
+  const support = buildSupportLeaves(idea)[0]?.label ?? "Add one strong support point";
+  const resultCandidate =
+    idea.supports.find((supportItem) => supportItem.supportType === "RESULT")?.text ??
+    idea.patterns[0]?.exampleAnswer ??
+    "";
+  const result = resultCandidate
+    ? truncate(splitIntoMemorableBits(resultCandidate)[0] ?? resultCandidate, 96)
+    : "Add a result line";
+
+  return [
+    {
+      id: `${idea.id}-memorize-main`,
+      label: `1. Main idea: ${mainIdea}`,
+      secondaryLabel: undefined,
+      tooltip: idea.descriptionEn,
+      href: undefined,
+      category: "memorize" as const,
+    },
+    {
+      id: `${idea.id}-memorize-support`,
+      label: `2. Support: ${support}`,
+      secondaryLabel: undefined,
+      tooltip: idea.descriptionVi,
+      href: undefined,
+      category: "memorize" as const,
+    },
+    {
+      id: `${idea.id}-memorize-result`,
+      label: `3. Result: ${result}`,
+      secondaryLabel: undefined,
+      tooltip: resultCandidate || idea.descriptionEn,
+      href: undefined,
+      category: "memorize" as const,
+    },
+  ] satisfies BranchLeaf[];
+}
+
+function buildFocusBranches(idea: SpeakingIdeaRecord, memorizeView: boolean) {
+  const memorizeLeaves = buildMemorizeLeaves(idea);
+
+  if (memorizeView) {
+    return [
+      {
+        id: `${idea.id}-branch-main`,
+        ...BRANCH_LAYOUT[0],
+        label: "Main idea",
+        shortHint: "step 1",
+        leafCategory: "memorize" as const,
+        accentColor: "#0f766e",
+        leaves: [memorizeLeaves[0]],
+      },
+      {
+        id: `${idea.id}-branch-support`,
+        ...BRANCH_LAYOUT[2],
+        label: "Support",
+        shortHint: "step 2",
+        leafCategory: "memorize" as const,
+        accentColor: "#7c3aed",
+        leaves: [memorizeLeaves[1]],
+      },
+      {
+        id: `${idea.id}-branch-result`,
+        ...BRANCH_LAYOUT[5],
+        label: "Result",
+        shortHint: "step 3",
+        leafCategory: "memorize" as const,
+        accentColor: "#2563eb",
+        leaves: [memorizeLeaves[2]],
+      },
+    ] satisfies BranchSection[];
+  }
+
+  return [
+    {
+      id: `${idea.id}-branch-simple`,
+      ...BRANCH_LAYOUT[0],
+      leaves: buildSimpleLeaves(idea),
+    },
+    {
+      id: `${idea.id}-branch-band`,
+      ...BRANCH_LAYOUT[1],
+      leaves: buildBandUpgradeLeaves(idea),
+    },
+    {
+      id: `${idea.id}-branch-support`,
+      ...BRANCH_LAYOUT[2],
+      leaves: buildSupportLeaves(idea),
+    },
+    {
+      id: `${idea.id}-branch-pattern`,
+      ...BRANCH_LAYOUT[3],
+      leaves: buildPatternLeaves(idea),
+    },
+    {
+      id: `${idea.id}-branch-chunk`,
+      ...BRANCH_LAYOUT[4],
+      leaves: buildUsefulChunkLeaves(idea),
+    },
+    {
+      id: `${idea.id}-branch-question`,
+      ...BRANCH_LAYOUT[5],
+      leaves: buildQuestionLeaves(idea),
+    },
+    {
+      id: `${idea.id}-branch-sample`,
+      ...BRANCH_LAYOUT[6],
+      leaves: buildSampleLeaves(idea),
+    },
+  ] satisfies BranchSection[];
+}
+
+function buildBranchHeaderNode(branch: BranchSection): SpeakingIdeaMapGraphNode {
+  return {
+    id: branch.id,
+    kind: "branch",
+    label: branch.label,
+    secondaryLabel: branch.shortHint,
+    nodeSize: "medium",
+    width: BRANCH_DIMENSIONS.width,
+    height: BRANCH_DIMENSIONS.height,
+    position: branch.branchPosition,
+    accentColor: branch.accentColor,
+    category: branch.leafCategory,
+  };
+}
+
+function buildFocusScene(idea: SpeakingIdeaRecord, memorizeView: boolean) {
   const rootSize = getNodeSize(getNodeWeight(idea));
-  const rootDimensions = DETAIL_NODE_DIMENSIONS.idea[rootSize];
+  const rootDimensions = ROOT_DIMENSIONS[rootSize];
+  const rootBody = memorizeView
+    ? truncate(idea.descriptionVi || idea.descriptionEn || idea.title, 92)
+    : truncate(idea.descriptionVi || idea.descriptionEn, 120);
+
   const nodes: SpeakingIdeaMapGraphNode[] = [
     {
       id: idea.id,
-      kind: "idea",
+      kind: "root",
       label: idea.title,
       secondaryLabel: idea.shortLabel,
-      body: idea.descriptionEn,
+      body: rootBody,
       href: `/admin/ideas/${idea.id}`,
-      tooltip: idea.descriptionVi,
+      tooltip: `${idea.descriptionVi}\n\n${idea.descriptionEn}`,
       nodeSize: rootSize,
       width: rootDimensions.width,
       height: rootDimensions.height,
       position: { x: 0, y: 0 },
-      accentColor: getAccentColor("idea"),
-      meta: {
-        reuseScore: idea.reuseScore,
-        popularityScore: idea.popularityScore,
-        linkedQuestions: idea.questionMaps.length,
-      },
+      accentColor: getAccentColor("root"),
+      meta: memorizeView
+        ? undefined
+        : {
+            reuse: `${idea.reuseScore}/5 reuse`,
+            popularity: `${idea.popularityScore}/5 popularity`,
+            linked: `${idea.questionMaps.length} question(s)`,
+          },
     },
   ];
 
   const edges: SpeakingIdeaMapGraphEdge[] = [];
-
-  const branches = [
-    {
-      id: `${idea.id}-variants`,
-      label: "Band variants",
-      items: idea.variants.map((variant) => ({
-        id: variant.id,
-        kind: "variant" as const,
-        label: `Band ${variant.bandLevel}`,
-        secondaryLabel: variant.phrase,
-        body: getVariantBody(variant.phrase, variant.exampleSentence),
-        tooltip: variant.exampleSentence,
-      })),
-      branchPosition: { x: -360, y: -240 },
-      itemOrigin: { x: -700, y: -320 },
-      itemGap: 118,
-    },
-    {
-      id: `${idea.id}-supports`,
-      label: "Support points",
-      items: idea.supports.map((support) => ({
-        id: support.id,
-        kind: "support" as const,
-        label: support.supportType.replaceAll("_", " "),
-        secondaryLabel: undefined,
-        body: getSupportBody(support.text, support.example),
-        tooltip: support.example ?? support.text,
-      })),
-      branchPosition: { x: -360, y: 170 },
-      itemOrigin: { x: -740, y: 110 },
-      itemGap: 136,
-    },
-    {
-      id: `${idea.id}-questions`,
-      label: "Linked questions",
-      items: idea.questionMaps.map((questionMap) => ({
-        id: questionMap.id,
-        kind: "question" as const,
-        label: getQuestionLabel(questionMap),
-        secondaryLabel: questionMap.isPrimary ? "Primary idea" : `Relevance ${questionMap.relevanceScore}/5`,
-        body: getQuestionBody(questionMap),
-        tooltip: questionMap.aiReason ?? questionMap.speakingQuestion.prompt,
-        href: "/admin/questions",
-      })),
-      branchPosition: { x: 420, y: -240 },
-      itemOrigin: { x: 690, y: -320 },
-      itemGap: 136,
-    },
-    {
-      id: `${idea.id}-patterns`,
-      label: "Answer patterns",
-      items: idea.patterns.map((pattern) => ({
-        id: pattern.id,
-        kind: "pattern" as const,
-        label: "Reusable pattern",
-        secondaryLabel: pattern.patternText,
-        body: getPatternBody(pattern.patternText, pattern.exampleAnswer),
-        tooltip:
-          typeof pattern.variablesJson === "object" && pattern.variablesJson
-            ? JSON.stringify(pattern.variablesJson)
-            : pattern.exampleAnswer,
-      })),
-      branchPosition: { x: 420, y: 170 },
-      itemOrigin: { x: 690, y: 110 },
-      itemGap: 132,
-    },
-  ] as const;
+  const branches = buildFocusBranches(idea, memorizeView);
 
   for (const branch of branches) {
-    if (branch.items.length === 0) {
-      continue;
-    }
-
-    nodes.push(createBranchNode(branch.id, branch.label, branch.branchPosition, branch.items.length));
+    nodes.push(buildBranchHeaderNode(branch));
     edges.push({
       id: `${idea.id}->${branch.id}`,
       source: idea.id,
       target: branch.id,
     });
 
-    branch.items.forEach((item, index) => {
-      const dimensions = DETAIL_NODE_DIMENSIONS[item.kind];
-      const nodeId = `${branch.id}-${item.id}`;
+    branch.leaves.forEach((leaf, index) => {
+      const nodeId = `${branch.id}-${leaf.id}`;
 
       nodes.push({
         id: nodeId,
-        kind: item.kind,
-        label: item.label,
-        secondaryLabel: item.secondaryLabel,
-        body: item.body,
-        href: "href" in item ? item.href : undefined,
-        tooltip: item.tooltip,
+        kind: "leaf",
+        label: leaf.label,
+        secondaryLabel: leaf.secondaryLabel,
+        href: leaf.href,
+        tooltip: leaf.tooltip ?? leaf.label,
         nodeSize: "small",
-        width: dimensions.width,
-        height: dimensions.height,
+        width: LEAF_DIMENSIONS.width,
+        height: LEAF_DIMENSIONS.height,
         position: {
-          x: branch.itemOrigin.x,
-          y: branch.itemOrigin.y + index * branch.itemGap,
+          x: branch.leafOrigin.x,
+          y: branch.leafOrigin.y + index * branch.leafGapY,
         },
-        accentColor: getAccentColor(item.kind),
+        accentColor: getAccentColor("leaf", leaf.category),
+        category: leaf.category,
       });
 
       edges.push({
@@ -461,6 +785,7 @@ export function buildSpeakingIdeaMindMapScene({
   filters = {},
   mode = "OVERVIEW",
   selectedIdeaId = null,
+  memorizeView = false,
   overviewLimit = 24,
 }: BuildSceneInput): SpeakingIdeaMapScene {
   const filteredIdeas = applyFilters(ideas, filters);
@@ -485,7 +810,7 @@ export function buildSpeakingIdeaMindMapScene({
       };
     }
 
-    const focusScene = buildFocusScene(selectedIdea);
+    const focusScene = buildFocusScene(selectedIdea, memorizeView);
     return {
       mode,
       topicOptions,

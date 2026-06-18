@@ -4,11 +4,10 @@ import "@xyflow/react/dist/style.css";
 
 import {
   AimOutlined,
-  CompressOutlined,
   EyeOutlined,
   FullscreenOutlined,
-  NodeIndexOutlined,
-  ReloadOutlined,
+  PartitionOutlined,
+  RobotOutlined,
 } from "@ant-design/icons";
 import {
   App,
@@ -16,9 +15,10 @@ import {
   Card,
   Empty,
   Input,
-  Radio,
+  Segmented,
   Select,
   Space,
+  Switch,
   Tooltip,
   Typography,
 } from "antd";
@@ -32,11 +32,12 @@ import {
   Position,
   ReactFlow,
   ReactFlowProvider,
+  useReactFlow,
 } from "@xyflow/react";
 import Link from "next/link";
-import type { CSSProperties } from "react";
-import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   IELTS_TASK_TYPE_LABELS,
@@ -44,36 +45,36 @@ import {
 } from "@/lib/constants";
 import {
   buildSpeakingIdeaMindMapScene,
-  type SpeakingIdeaMapMode,
   type SpeakingIdeaMapGraphNode,
-  type SpeakingIdeaMapNodeKind,
+  type SpeakingIdeaMapMode,
 } from "@/lib/speaking-idea-map";
 import type { IeltsTaskType, SpeakingIdeaRecord, SpeakingIdeaStatus } from "@/lib/types";
 
 type FlowNodeData = SpeakingIdeaMapGraphNode;
 
-function getHandleLayout(kind: SpeakingIdeaMapNodeKind) {
-  switch (kind) {
-    case "idea":
-      return {
-        source: [Position.Left, Position.Right] as const,
-        target: [] as const,
-      };
-    case "branch":
-      return {
-        source: [Position.Left, Position.Right] as const,
-        target: [Position.Left, Position.Right] as const,
-      };
-    default:
-      return {
-        source: [] as const,
-        target: [Position.Left, Position.Right] as const,
-      };
+function getNodeHandleLayout(kind: SpeakingIdeaMapGraphNode["kind"]) {
+  if (kind === "root") {
+    return {
+      source: [Position.Left, Position.Right, Position.Top, Position.Bottom] as const,
+      target: [] as const,
+    };
   }
+
+  if (kind === "branch") {
+    return {
+      source: [Position.Left, Position.Right, Position.Top, Position.Bottom] as const,
+      target: [Position.Left, Position.Right, Position.Top, Position.Bottom] as const,
+    };
+  }
+
+  return {
+    source: [] as const,
+    target: [Position.Left, Position.Right, Position.Top, Position.Bottom] as const,
+  };
 }
 
 function MindMapNode({ data }: NodeProps<Node<FlowNodeData>>) {
-  const handleLayout = getHandleLayout(data.kind);
+  const handles = getNodeHandleLayout(data.kind);
 
   return (
     <Tooltip
@@ -85,7 +86,7 @@ function MindMapNode({ data }: NodeProps<Node<FlowNodeData>>) {
       mouseEnterDelay={0.15}
     >
       <div
-        className={`speaking-idea-flow-node speaking-idea-flow-node--${data.kind} speaking-idea-flow-node--${data.nodeSize}`}
+        className={`speaking-idea-flow-node speaking-idea-flow-node--${data.kind} speaking-idea-flow-node--${data.nodeSize}${data.category ? ` speaking-idea-flow-node--${data.category}` : ""}`}
         style={
           {
             width: data.width,
@@ -94,7 +95,7 @@ function MindMapNode({ data }: NodeProps<Node<FlowNodeData>>) {
           } as CSSProperties
         }
       >
-        {handleLayout.target.map((position) => (
+        {handles.target.map((position) => (
           <Handle
             key={`target-${position}`}
             type="target"
@@ -115,7 +116,10 @@ function MindMapNode({ data }: NodeProps<Node<FlowNodeData>>) {
         </div>
 
         {data.body ? (
-          <Typography.Paragraph className="speaking-idea-flow-node__body wrap-anywhere" ellipsis={{ rows: data.kind === "idea" ? 3 : 4 }}>
+          <Typography.Paragraph
+            className="speaking-idea-flow-node__body wrap-anywhere"
+            ellipsis={{ rows: data.kind === "root" ? 3 : 2 }}
+          >
             {data.body}
           </Typography.Paragraph>
         ) : null}
@@ -124,7 +128,7 @@ function MindMapNode({ data }: NodeProps<Node<FlowNodeData>>) {
           <div className="speaking-idea-flow-node__meta">
             {Object.entries(data.meta)
               .filter((entry) => entry[1] !== undefined && entry[1] !== null && entry[1] !== "")
-              .slice(0, data.kind === "idea" ? 4 : 2)
+              .slice(0, data.kind === "idea" || data.kind === "root" ? 4 : 2)
               .map(([key, value]) => (
                 <span key={key} className="speaking-idea-flow-node__pill">
                   {String(value)}
@@ -133,7 +137,7 @@ function MindMapNode({ data }: NodeProps<Node<FlowNodeData>>) {
           </div>
         ) : null}
 
-        {handleLayout.source.map((position) => (
+        {handles.source.map((position) => (
           <Handle
             key={`source-${position}`}
             type="source"
@@ -150,27 +154,80 @@ const nodeTypes = {
   mapNode: MindMapNode,
 };
 
+function FlowPanel({
+  mode,
+  hiddenIdeaCount,
+  selectedIdeaTitle,
+  onBackToOverview,
+  onExpandWithAi,
+}: {
+  mode: SpeakingIdeaMapMode;
+  hiddenIdeaCount: number;
+  selectedIdeaTitle?: string;
+  onBackToOverview: () => void;
+  onExpandWithAi: () => void;
+}) {
+  const reactFlow = useReactFlow();
+
+  const fit = useCallback(() => {
+    void reactFlow.fitView({ padding: 0.22, duration: 280 });
+  }, [reactFlow]);
+
+  useEffect(() => {
+    fit();
+  }, [fit, mode, selectedIdeaTitle]);
+
+  return (
+    <>
+      <Controls position="top-right" showInteractive={false} fitViewOptions={{ padding: 0.22, duration: 280 }} />
+      <Panel position="top-left">
+        <Space wrap>
+          <Button icon={<FullscreenOutlined />} onClick={fit}>
+            Fit view
+          </Button>
+          <Button icon={<PartitionOutlined />} onClick={fit}>
+            Reset layout
+          </Button>
+          {mode === "FOCUS" ? (
+            <>
+              <Button onClick={onBackToOverview}>Back to overview</Button>
+              <Button icon={<RobotOutlined />} onClick={onExpandWithAi}>
+                Expand this idea with AI
+              </Button>
+            </>
+          ) : null}
+          {mode === "OVERVIEW" && hiddenIdeaCount > 0 ? (
+            <Typography.Text type="secondary">
+              {hiddenIdeaCount} idea(s) hidden. Narrow filters to focus faster.
+            </Typography.Text>
+          ) : null}
+        </Space>
+      </Panel>
+    </>
+  );
+}
+
 function SpeakingIdeaMapCanvas({
   flowNodes,
   flowEdges,
-  onReset,
-  onFit,
+  mode,
   hiddenIdeaCount,
+  selectedIdeaTitle,
+  onNodeAction,
+  onBackToOverview,
+  onExpandWithAi,
 }: {
   flowNodes: Node<FlowNodeData>[];
-  flowEdges: {
-    id: string;
-    source: string;
-    target: string;
-  }[];
-  onReset: () => void;
-  onFit: () => void;
+  flowEdges: Array<{ id: string; source: string; target: string }>;
+  mode: SpeakingIdeaMapMode;
   hiddenIdeaCount: number;
+  selectedIdeaTitle?: string;
+  onNodeAction: (node: FlowNodeData) => void;
+  onBackToOverview: () => void;
+  onExpandWithAi: () => void;
 }) {
-  const router = useRouter();
-
   return (
-    <div className="speaking-idea-flow-shell">
+    <div className={`speaking-idea-flow-shell speaking-idea-flow-shell--${mode.toLowerCase()}`}>
       <ReactFlow
         nodes={flowNodes}
         edges={flowEdges.map((edge) => ({
@@ -184,9 +241,9 @@ function SpeakingIdeaMapCanvas({
         }))}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.18, duration: 250 }}
-        minZoom={0.35}
-        maxZoom={1.8}
+        fitViewOptions={{ padding: 0.22, duration: 280 }}
+        minZoom={0.25}
+        maxZoom={1.9}
         defaultEdgeOptions={{
           type: "smoothstep",
           style: {
@@ -194,14 +251,13 @@ function SpeakingIdeaMapCanvas({
             strokeWidth: 1.5,
           },
         }}
-        onNodeClick={(_event, node) => {
-          if (node.data.href) {
-            router.push(node.data.href);
-          }
-        }}
+        onNodeClick={(_event, node) => onNodeAction(node.data)}
         nodesDraggable={false}
         elementsSelectable
+        selectionOnDrag={false}
+        panOnDrag
         panOnScroll
+        zoomOnScroll
         className="speaking-idea-flow"
       >
         <Background gap={28} size={1} color="#dbe2ea" />
@@ -210,29 +266,16 @@ function SpeakingIdeaMapCanvas({
           zoomable
           position="bottom-right"
           nodeColor={(node) => (node.data?.accentColor as string) ?? "#1d4ed8"}
-          maskColor="rgba(250, 252, 255, 0.75)"
+          maskColor="rgba(250, 252, 255, 0.78)"
           className="speaking-idea-flow__minimap"
         />
-        <Controls
-          position="top-right"
-          showInteractive={false}
-          fitViewOptions={{ padding: 0.18, duration: 250 }}
+        <FlowPanel
+          mode={mode}
+          hiddenIdeaCount={hiddenIdeaCount}
+          selectedIdeaTitle={selectedIdeaTitle}
+          onBackToOverview={onBackToOverview}
+          onExpandWithAi={onExpandWithAi}
         />
-        <Panel position="top-left">
-          <Space wrap>
-            <Button icon={<CompressOutlined />} onClick={onFit}>
-              Fit view
-            </Button>
-            <Button icon={<ReloadOutlined />} onClick={onReset}>
-              Reset layout
-            </Button>
-            {hiddenIdeaCount > 0 ? (
-              <Typography.Text type="secondary">
-                {hiddenIdeaCount} idea(s) hidden in overview. Narrow filters or switch to focus.
-              </Typography.Text>
-            ) : null}
-          </Space>
-        </Panel>
       </ReactFlow>
     </div>
   );
@@ -243,22 +286,25 @@ export function SpeakingIdeaMapView({
 }: {
   ideas: SpeakingIdeaRecord[];
 }) {
+  const router = useRouter();
   const { message } = App.useApp();
   const [search, setSearch] = useState("");
   const [topic, setTopic] = useState<string | undefined>();
   const [status, setStatus] = useState<SpeakingIdeaStatus | "ALL">("ACTIVE");
   const [minReuseScore, setMinReuseScore] = useState<number | undefined>(3);
   const [questionPart, setQuestionPart] = useState<IeltsTaskType | "ALL">("ALL");
-  const [mode, setMode] = useState<SpeakingIdeaMapMode>("OVERVIEW");
   const [selectedIdeaId, setSelectedIdeaId] = useState<string | undefined>();
-  const [flowKey, setFlowKey] = useState(0);
+  const [memorizeView, setMemorizeView] = useState(false);
+
+  const mode: SpeakingIdeaMapMode = selectedIdeaId ? "FOCUS" : "OVERVIEW";
 
   const scene = useMemo(
     () =>
       buildSpeakingIdeaMindMapScene({
         ideas,
         mode,
-        selectedIdeaId,
+        selectedIdeaId: selectedIdeaId ?? null,
+        memorizeView,
         overviewLimit: 24,
         filters: {
           search,
@@ -268,7 +314,7 @@ export function SpeakingIdeaMapView({
           questionPart,
         },
       }),
-    [ideas, minReuseScore, mode, questionPart, search, selectedIdeaId, status, topic],
+    [ideas, memorizeView, minReuseScore, mode, questionPart, search, selectedIdeaId, status, topic],
   );
 
   const flowNodes = useMemo<Node<FlowNodeData>[]>(
@@ -294,8 +340,23 @@ export function SpeakingIdeaMapView({
     [scene.edges],
   );
 
+  const handleNodeAction = (node: FlowNodeData) => {
+    if (mode === "OVERVIEW" && node.kind === "idea") {
+      setSelectedIdeaId(node.id);
+      return;
+    }
+
+    if (node.kind === "root" && node.href) {
+      router.push(node.href);
+      return;
+    }
+
+    if (node.kind === "leaf" && node.href) {
+      router.push(node.href);
+    }
+  };
+
   const showNoIdeas = scene.totalIdeas === 0;
-  const showNoFocusSelection = mode === "FOCUS" && !scene.selectedIdeaId;
 
   return (
     <div className="stacked-view">
@@ -305,9 +366,9 @@ export function SpeakingIdeaMapView({
             Speaking Idea Mind Map
           </Typography.Title>
           <Typography.Text type="secondary" className="wrap-anywhere">
-            Explore reusable IELTS Speaking ideas as a real map. Use overview for fast coverage,
-            then switch to single-idea focus to memorize variants, support points, and linked
-            questions without the cramped card grid.
+            Use overview to spot the most reusable ideas, then click one idea to open a
+            memorization-oriented canvas with short phrases, answer logic, applicable questions,
+            and reusable speaking patterns.
           </Typography.Text>
         </div>
         <Space wrap>
@@ -328,25 +389,24 @@ export function SpeakingIdeaMapView({
           <div className="responsive-toolbar__grow">
             <Input.Search
               allowClear
-              placeholder="Search title, description, support point, or linked prompt"
+              placeholder="Search idea title, branch logic, chunks, or linked prompts"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
           <div className="responsive-toolbar__actions">
-            <Radio.Group
+            <Segmented
               value={mode}
-              onChange={(event) => {
-                const nextMode = event.target.value as SpeakingIdeaMapMode;
-                setMode(nextMode);
-                setFlowKey((current) => current + 1);
-              }}
-              optionType="button"
-              buttonStyle="solid"
               options={[
                 { label: "Overview", value: "OVERVIEW" },
-                { label: "Single Idea Focus", value: "FOCUS" },
+                { label: "Focus", value: "FOCUS", disabled: !selectedIdeaId },
               ]}
+              onChange={(value) => {
+                if (value === "OVERVIEW") {
+                  setSelectedIdeaId(undefined);
+                  setMemorizeView(false);
+                }
+              }}
             />
             <Select
               value={status}
@@ -393,18 +453,14 @@ export function SpeakingIdeaMapView({
             />
             {mode === "FOCUS" ? (
               <Select
-                allowClear
+                value={selectedIdeaId}
                 placeholder="Select an idea"
-                value={scene.selectedIdeaId ?? selectedIdeaId}
-                onChange={(value) => {
-                  setSelectedIdeaId(value);
-                  setFlowKey((current) => current + 1);
-                }}
+                onChange={(value) => setSelectedIdeaId(value)}
                 options={scene.ideaOptions.map((idea) => ({
                   label: `${idea.title} · ${idea.shortLabel}`,
                   value: idea.id,
                 }))}
-                style={{ minWidth: 240 }}
+                style={{ minWidth: 260 }}
               />
             ) : null}
           </div>
@@ -422,24 +478,11 @@ export function SpeakingIdeaMapView({
               <Button type="primary">
                 <Link href="/admin/ideas/new">Create idea</Link>
               </Button>
-              <Button
-                icon={<NodeIndexOutlined />}
-                onClick={() => {
-                  message.info("Use the idea list page to generate new draft ideas with AI.");
-                }}
-              >
+              <Button>
                 <Link href="/admin/ideas">Generate ideas with AI</Link>
               </Button>
             </Space>
           </Empty>
-        </Card>
-      ) : showNoFocusSelection ? (
-        <Card>
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="Select one idea to open the full branch map for variants, support points, linked questions, and patterns."
-            style={{ marginBlock: 32 }}
-          />
         </Card>
       ) : (
         <Card
@@ -449,34 +492,52 @@ export function SpeakingIdeaMapView({
               : `Focus map${scene.selectedIdeaTitle ? ` · ${scene.selectedIdeaTitle}` : ""}`
           }
           extra={
-            <Space wrap>
+            mode === "FOCUS" ? (
+              <Space wrap>
+                <Typography.Text type="secondary">Memorize View</Typography.Text>
+                <Switch checked={memorizeView} onChange={setMemorizeView} />
+                <Button onClick={() => setSelectedIdeaId(undefined)}>Back to overview</Button>
+                {scene.selectedIdeaId ? (
+                  <Button type="primary">
+                    <Link href={`/admin/ideas/${scene.selectedIdeaId}`}>Open idea detail</Link>
+                  </Button>
+                ) : null}
+              </Space>
+            ) : (
               <Typography.Text type="secondary">
-                {mode === "OVERVIEW"
-                  ? `${scene.nodes.length} idea node(s)`
-                  : `${scene.nodes.length} node(s) / ${scene.edges.length} branch edge(s)`}
+                Click one core idea node to enter memorization focus mode.
               </Typography.Text>
-              <Button icon={<FullscreenOutlined />} onClick={() => setFlowKey((current) => current + 1)}>
-                Refit canvas
-              </Button>
-            </Space>
+            )
           }
           bodyStyle={{ padding: 0 }}
         >
-          <ReactFlowProvider>
-            <SpeakingIdeaMapCanvas
-              key={flowKey}
-              flowNodes={flowNodes}
-              flowEdges={flowEdges}
-              hiddenIdeaCount={scene.hiddenIdeaCount}
-              onFit={() => setFlowKey((current) => current + 1)}
-              onReset={() => {
-                if (mode === "FOCUS" && scene.selectedIdeaId) {
-                  setSelectedIdeaId(scene.selectedIdeaId);
-                }
-                setFlowKey((current) => current + 1);
-              }}
+          {mode === "FOCUS" && !scene.selectedIdeaId ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="Select a core idea from the dropdown or click an idea in overview to open the deep memorization map."
+              style={{ marginBlock: 48 }}
             />
-          </ReactFlowProvider>
+          ) : (
+            <ReactFlowProvider>
+              <SpeakingIdeaMapCanvas
+                flowNodes={flowNodes}
+                flowEdges={flowEdges}
+                mode={mode}
+                hiddenIdeaCount={scene.hiddenIdeaCount}
+                selectedIdeaTitle={scene.selectedIdeaTitle}
+                onNodeAction={handleNodeAction}
+                onBackToOverview={() => {
+                  setSelectedIdeaId(undefined);
+                  setMemorizeView(false);
+                }}
+                onExpandWithAi={() => {
+                  message.info(
+                    "AI expansion preview for missing variants, support logic, chunks, and applicable questions is the next step. It is intentionally not auto-saving yet.",
+                  );
+                }}
+              />
+            </ReactFlowProvider>
+          )}
         </Card>
       )}
     </div>

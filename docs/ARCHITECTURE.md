@@ -231,6 +231,12 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
   - `generatedAnswersCount` currently reports `0`
   - the UI labels this clearly as a generate-only phase so admins do not mistake it for saved analytics
   - admin can copy or regenerate the answer, but the result is not stored in a database table yet in this phase
+- The admin mind-map route `/admin/ideas/map` now behaves as a memorization-first open canvas rather than a card grid:
+  - `Overview` mode renders only core reusable ideas as large clickable nodes on a free pan/zoom canvas
+  - clicking one idea switches into `Focus` mode for a single deeply expanded idea
+  - `Focus` mode uses a deterministic radial layout with the root idea in the center and compact branches for `Simple version`, `Band upgrade`, `Supporting logic`, `Answer pattern`, `Useful chunks`, `Applicable questions`, and `Sample answers`
+  - `Memorize View` compresses the same idea into a 3-step formula: `Main idea`, `Support`, and `Result`
+  - the renderer intentionally caps leaf counts per branch so the map stays readable and useful for memorization instead of turning into a dense data dump
 
 ### Question lifecycle and AI generation
 

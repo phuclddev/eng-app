@@ -457,9 +457,17 @@ a {
 }
 
 .speaking-idea-flow-shell {
-  height: 72vh;
-  min-height: 640px;
+  height: 74vh;
+  min-height: 680px;
   max-height: 980px;
+}
+
+.speaking-idea-flow-shell--overview {
+  min-height: 620px;
+}
+
+.speaking-idea-flow-shell--focus {
+  min-height: 760px;
 }
 
 .speaking-idea-flow {
@@ -501,15 +509,15 @@ a {
 
 .speaking-idea-flow-node {
   color: var(--ink);
-  border-radius: 22px;
+  border-radius: 18px;
   border: 1px solid color-mix(in srgb, var(--idea-accent) 24%, white);
-  border-left-width: 5px;
+  border-left-width: 4px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
-  padding: 14px 16px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   cursor: default;
   transition: box-shadow 160ms ease, transform 160ms ease;
 }
@@ -518,31 +526,50 @@ a {
   box-shadow: 0 18px 38px rgba(15, 23, 42, 0.12);
 }
 
+.speaking-idea-flow-node--root {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(37, 99, 235, 0.92));
+  color: #f8fafc;
+  border-color: rgba(59, 130, 246, 0.44);
+  cursor: pointer;
+}
+
+.speaking-idea-flow-node--root .ant-typography,
+.speaking-idea-flow-node--root .ant-typography-secondary {
+  color: inherit !important;
+}
+
 .speaking-idea-flow-node--idea {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.95));
   cursor: pointer;
 }
 
-.speaking-idea-flow-node--idea:hover {
+.speaking-idea-flow-node--idea:hover,
+.speaking-idea-flow-node--root:hover {
   transform: translateY(-2px);
 }
 
 .speaking-idea-flow-node--branch {
-  border-style: dashed;
-  border-radius: 20px;
-  background: rgba(248, 250, 252, 0.94);
+  border-style: solid;
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.98);
+  box-shadow: 0 12px 22px rgba(15, 23, 42, 0.06);
+}
+
+.speaking-idea-flow-node--leaf {
+  border-radius: 14px;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
 }
 
 .speaking-idea-flow-node--small {
-  font-size: 0.92rem;
+  font-size: 0.9rem;
 }
 
 .speaking-idea-flow-node--medium {
-  font-size: 0.96rem;
+  font-size: 0.94rem;
 }
 
 .speaking-idea-flow-node--large {
-  font-size: 1rem;
+  font-size: 0.98rem;
 }
 
 .speaking-idea-flow-node__header {
@@ -555,8 +582,8 @@ a {
 .speaking-idea-flow-node__body {
   margin: 0 !important;
   color: rgba(15, 23, 42, 0.76);
-  line-height: 1.5;
-  font-size: 0.9em;
+  line-height: 1.42;
+  font-size: 0.88em;
 }
 
 .speaking-idea-flow-node__meta {
@@ -577,6 +604,50 @@ a {
   font-size: 0.78rem;
   font-weight: 600;
   white-space: nowrap;
+}
+
+.speaking-idea-flow-node--root .speaking-idea-flow-node__pill {
+  background: rgba(255, 255, 255, 0.14);
+  color: #f8fafc;
+}
+
+.speaking-idea-flow-node--leaf .speaking-idea-flow-node__body {
+  display: none;
+}
+
+.speaking-idea-flow-node--leaf .speaking-idea-flow-node__header {
+  gap: 2px;
+}
+
+.speaking-idea-flow-node--question {
+  background: rgba(255, 251, 235, 0.98);
+}
+
+.speaking-idea-flow-node--chunk {
+  background: rgba(239, 246, 255, 0.98);
+}
+
+.speaking-idea-flow-node--pattern {
+  background: rgba(253, 242, 248, 0.98);
+}
+
+.speaking-idea-flow-node--support,
+.speaking-idea-flow-node--memorize {
+  background: rgba(250, 245, 255, 0.98);
+}
+
+.speaking-idea-flow-node--simple,
+.speaking-idea-flow-node--band {
+  background: rgba(240, 253, 250, 0.98);
+}
+
+.speaking-idea-flow-node--sample {
+  background: rgba(239, 246, 255, 0.98);
+}
+
+.speaking-idea-flow-node--cta {
+  border-style: dashed;
+  background: rgba(248, 250, 252, 0.98);
 }
 
 .speaking-idea-flow-node__handle {
