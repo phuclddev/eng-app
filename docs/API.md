@@ -21,6 +21,7 @@
 - `GET /admin/ideas/[id]`
 - `GET /admin/ideas/[id]/study-map`
 - `GET /admin/ideas/map`
+- `POST /api/admin/ideas/plantuml/render`
 - `POST /api/admin/ideas/generate`
 - `POST /api/admin/ideas/generate-answer`
 - `POST /api/admin/ideas/map-question`
@@ -78,14 +79,27 @@
 - `saveSpeakingIdeaMindMapAction` is admin-only and persists the study-map source layer for one idea.
 - Accepts:
   - `ideaId`
-  - `sourceType` currently `MERMAID`
+  - `sourceType` one of `MERMAID`, `PLANTUML`
   - `sourceText`
   - `renderedTitle` optional
 - Validation rules:
   - `sourceText` is required
   - Mermaid source must start with `mindmap`
+  - PlantUML source must start with `@startmindmap`
 - This action does not change the core idea reasoning records (`variants`, `supports`, `patterns`, `questionMaps`); it only updates the editable study-map source and title.
 - There is no public REST route for this in the current phase; the admin editor uses a server action so the source stays inside the authenticated admin workflow.
+
+### `POST /api/admin/ideas/plantuml/render`
+
+- Admin-only. Requires `ADMIN` role and an `APPROVED` session.
+- Accepts JSON:
+  - `sourceText`
+- Validation rules:
+  - `sourceText` is required
+  - must start with `@startmindmap`
+  - maximum length `30000`
+- Uses `PLANTUML_SERVER_URL` when configured to render a private PlantUML SVG preview.
+- If `PLANTUML_SERVER_URL` is missing, the route returns a friendly configuration error and the editor still supports save/copy/download `.puml`.
 
 ### `POST /api/admin/ideas/generate`
 

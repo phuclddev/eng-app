@@ -13,6 +13,7 @@ import {
   Col,
   Input,
   Row,
+  Segmented,
   Space,
   Typography,
 } from "antd";
@@ -24,7 +25,7 @@ import {
   formatSpeakingIdeaMindMapSource,
   generateSpeakingIdeaMindMapSource,
 } from "@/lib/speaking-idea-mindmap-source";
-import type { SpeakingIdeaRecord } from "@/lib/types";
+import type { SpeakingIdeaMindMapSourceType, SpeakingIdeaRecord } from "@/lib/types";
 import { saveSpeakingIdeaMindMapAction } from "@/server/actions/admin";
 
 export function SpeakingIdeaMindMapEditor({
@@ -34,8 +35,16 @@ export function SpeakingIdeaMindMapEditor({
 }) {
   const { message } = App.useApp();
   const [isPending, startTransition] = useTransition();
-  const generatedSource = useMemo(() => generateSpeakingIdeaMindMapSource(idea), [idea]);
-  const [sourceText, setSourceText] = useState(idea.mindMapSourceText ?? generatedSource);
+  const [sourceType, setSourceType] = useState<SpeakingIdeaMindMapSourceType>(
+    idea.mindMapSourceType,
+  );
+  const generatedSource = useMemo(
+    () => generateSpeakingIdeaMindMapSource(idea, sourceType),
+    [idea, sourceType],
+  );
+  const [sourceText, setSourceText] = useState(
+    idea.mindMapSourceText ?? generateSpeakingIdeaMindMapSource(idea, idea.mindMapSourceType),
+  );
 
   const exportBaseName = useMemo(
     () => buildSpeakingIdeaMindMapExportBaseName(idea),
@@ -48,7 +57,7 @@ export function SpeakingIdeaMindMapEditor({
     startTransition(async () => {
       const result = await saveSpeakingIdeaMindMapAction({
         ideaId: idea.id,
-        sourceType: "MERMAID",
+        sourceType,
         sourceText: normalizedSource,
         renderedTitle: idea.mindMapRenderedTitle ?? idea.shortLabel ?? idea.title,
       });
@@ -78,7 +87,7 @@ export function SpeakingIdeaMindMapEditor({
       extra={
         <Space wrap>
           <Button icon={<BulbOutlined />} onClick={() => setSourceText(generatedSource)}>
-            Generate mind map source
+            Generate {sourceType === "PLANTUML" ? "PlantUML" : "Mermaid"} source
           </Button>
           <Button icon={<RobotOutlined />} onClick={() => message.info("AI improvement preview is the next safe step and is intentionally not auto-saving yet.")}>
             Improve map with AI
@@ -93,9 +102,9 @@ export function SpeakingIdeaMindMapEditor({
       }
     >
       <Typography.Paragraph type="secondary">
-        Edit a Mermaid source version of this idea map by hand, keep your own custom study
+        Edit a source-based version of this idea map by hand, keep your own custom study
         structure, and export it as SVG or PNG without changing the underlying speaking-idea
-        data.
+        data. PlantUML preview works when a private `PLANTUML_SERVER_URL` is configured.
       </Typography.Paragraph>
 
       <Row gutter={[16, 16]}>
@@ -105,6 +114,17 @@ export function SpeakingIdeaMindMapEditor({
             title="Source"
             extra={
               <Space wrap>
+                <Segmented<SpeakingIdeaMindMapSourceType>
+                  value={sourceType}
+                  options={[
+                    { label: "Mermaid", value: "MERMAID" },
+                    { label: "PlantUML", value: "PLANTUML" },
+                  ]}
+                  onChange={(value) => {
+                    setSourceType(value);
+                    setSourceText(generateSpeakingIdeaMindMapSource(idea, value));
+                  }}
+                />
                 <Button size="small" onClick={() => setSourceText(generatedSource)}>
                   Reset from idea data
                 </Button>
@@ -133,7 +153,7 @@ export function SpeakingIdeaMindMapEditor({
             title="Live preview"
             sourceText={sourceText}
             exportBaseName={exportBaseName}
-            sourceType="MERMAID"
+            sourceType={sourceType}
             showSourceCopy
             studyHref={`/admin/ideas/${idea.id}/study-map`}
           />

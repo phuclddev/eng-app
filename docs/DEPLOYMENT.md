@@ -30,8 +30,11 @@ pm2 reload ielts-chunk-trainer --update-env
 - Optional AI Tutor vars:
   - `AI_CHATFLOW_URL=https://ai.insea.io/api/chatflows/22038/run`
   - `AI_CHATFLOW_TOKEN=replace_me`
+- Optional private PlantUML preview var:
+  - `PLANTUML_SERVER_URL=http://localhost:8080`
 
 If AI Tutor env vars are omitted, the main learning flows still work and the AI Tutor UI will show that the feature is not configured.
+If `PLANTUML_SERVER_URL` is omitted, admins can still save/copy/download `.puml` sources, but PlantUML preview and SVG/PNG export for PlantUML maps will show a friendly configuration message.
 
 ## Initial admin bootstrap
 

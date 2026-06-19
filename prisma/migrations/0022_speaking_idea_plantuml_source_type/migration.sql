@@ -1,0 +1,9 @@
+ALTER TABLE `SpeakingIdea`
+  MODIFY COLUMN `mindMapSourceType` ENUM('MERMAID', 'PLANTUML', 'PLANTUML_TEXT') NOT NULL DEFAULT 'MERMAID';
+
+UPDATE `SpeakingIdea`
+SET `mindMapSourceType` = 'PLANTUML'
+WHERE `mindMapSourceType` = 'PLANTUML_TEXT';
+
+ALTER TABLE `SpeakingIdea`
+  MODIFY COLUMN `mindMapSourceType` ENUM('MERMAID', 'PLANTUML') NOT NULL DEFAULT 'MERMAID';

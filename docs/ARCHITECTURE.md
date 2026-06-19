@@ -242,10 +242,12 @@ Browser -> Nginx -> PM2 -> Next.js -> Prisma -> MySQL
   - core IELTS reasoning data still lives in `title`, descriptions, variants, supports, patterns, and question mappings
   - the custom Mermaid source is only a study/rendering layer and does not overwrite those reusable reasoning records
 - The source workflow is:
-  - server-side default Mermaid is generated from idea data when no custom source exists
-  - admins can manually edit the Mermaid source on `/admin/ideas/[id]`
-  - the right-hand preview renders client-side with Mermaid in `securityLevel: strict`
-  - admins can export SVG or PNG and open a distraction-light study page without changing learner-facing IELTS routes
+  - server-side default Mermaid or PlantUML is generated from idea data when no custom source exists
+  - admins can switch source type and manually edit the source on `/admin/ideas/[id]`
+  - Mermaid preview renders client-side with Mermaid in `securityLevel: strict`
+  - PlantUML preview renders through an authenticated admin route and a private `PLANTUML_SERVER_URL` when configured
+  - PNG export clones the rendered SVG, normalizes width/height/viewBox, inlines styles from the live SVG DOM, and falls back to SVG/open-in-new-tab if rasterization fails
+  - admins can export SVG, PNG, or the raw `.mmd` / `.puml` source and open a distraction-light study page without changing learner-facing IELTS routes
 - The open-canvas map route `/admin/ideas/map` still exists, but `Focus` now defaults to a source-based study preview while the older `Canvas view` remains optional for structural exploration
 
 ### Question lifecycle and AI generation

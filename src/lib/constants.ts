@@ -22,7 +22,7 @@ export const SPEAKING_IDEA_SUPPORT_TYPES = [
 ] as const;
 export const SPEAKING_IDEA_MIND_MAP_SOURCE_TYPES = [
   "MERMAID",
-  "PLANTUML_TEXT",
+  "PLANTUML",
 ] as const;
 export const SPEAKING_IDEA_GENERATE_DEFAULT_COUNT = 10;
 export const SPEAKING_IDEA_GENERATE_MAX_COUNT = 30;

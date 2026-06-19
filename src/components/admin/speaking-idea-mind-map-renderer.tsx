@@ -4,13 +4,25 @@ import {
   CopyOutlined,
   DownloadOutlined,
   ExpandOutlined,
+  LinkOutlined,
+  NodeIndexOutlined,
   PrinterOutlined,
 } from "@ant-design/icons";
 import { Alert, App, Button, Card, Space, Typography } from "antd";
 import type { MermaidConfig } from "mermaid";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+
+import {
+  downloadTextContent,
+  downloadSvgElementAsPng,
+  downloadSvgMarkup,
+  normalizeSvgMarkupForExport,
+  openSvgMarkupInNewTab,
+  prepareSvgElementForExport,
+} from "@/lib/export-diagram";
+import type { SpeakingIdeaMindMapSourceType } from "@/lib/types";
 
 const mermaidConfig: MermaidConfig = {
   startOnLoad: false,
@@ -25,72 +37,13 @@ type RendererProps = {
   sourceText: string;
   exportBaseName: string;
   emptyDescription?: string;
-  sourceType?: "MERMAID" | "PLANTUML_TEXT";
+  sourceType?: SpeakingIdeaMindMapSourceType;
   extraActions?: ReactNode;
   showSourceCopy?: boolean;
   studyHref?: string;
   printEnabled?: boolean;
   className?: string;
 };
-
-function getSvgMarkup(svgContainer: HTMLDivElement | null, fallback: string) {
-  const svg = svgContainer?.querySelector("svg");
-  return svg ? svg.outerHTML : fallback;
-}
-
-function triggerDownload(filename: string, content: BlobPart, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-async function downloadSvg(filename: string, svgMarkup: string) {
-  triggerDownload(filename, svgMarkup, "image/svg+xml;charset=utf-8");
-}
-
-async function downloadPng(filename: string, svgMarkup: string) {
-  const blob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const image = new Image();
-
-  await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
-    image.onerror = () => reject(new Error("Could not render SVG as PNG."));
-    image.src = url;
-  });
-
-  const width = image.width || 1600;
-  const height = image.height || 1200;
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    URL.revokeObjectURL(url);
-    throw new Error("PNG export is not available in this browser.");
-  }
-
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, width, height);
-  context.drawImage(image, 0, 0, width, height);
-
-  const pngBlob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((nextBlob) => resolve(nextBlob), "image/png");
-  });
-
-  URL.revokeObjectURL(url);
-
-  if (!pngBlob) {
-    throw new Error("Could not convert the mind map into PNG.");
-  }
-
-  triggerDownload(filename, pngBlob, "image/png");
-}
 
 function printSvg(svgMarkup: string, title: string) {
   const popup = window.open("", "_blank", "noopener,noreferrer,width=1400,height=900");
@@ -115,6 +68,30 @@ function printSvg(svgMarkup: string, title: string) {
   popup.print();
 }
 
+async function renderPlantumlSource(sourceText: string) {
+  const response = await fetch("/api/admin/ideas/plantuml/render", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ sourceText }),
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as {
+    svg?: string;
+    error?: string;
+  };
+
+  if (!response.ok || !payload.svg) {
+    throw new Error(
+      payload.error ||
+        "PlantUML rendering is not configured. You can still save, copy, and download the .puml source.",
+    );
+  }
+
+  return payload.svg;
+}
+
 export function SpeakingIdeaMindMapRenderer({
   title,
   sourceText,
@@ -132,31 +109,40 @@ export function SpeakingIdeaMindMapRenderer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [svgMarkup, setSvgMarkup] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isRendering, setIsRendering] = useState(false);
 
-  const normalizedSource = useMemo(() => sourceText.trim(), [sourceText]);
-  const sourceUnsupported =
-    Boolean(normalizedSource) && sourceType !== "MERMAID";
-  const effectiveError = sourceUnsupported
-    ? "Only Mermaid mind map source is supported in this preview right now."
-    : error;
-  const effectiveSvgMarkup =
-    normalizedSource && !sourceUnsupported ? svgMarkup : "";
+  const normalizedSource = sourceText.trim();
+  const effectiveSvgMarkup = normalizedSource ? svgMarkup : "";
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!normalizedSource || sourceType !== "MERMAID") {
+    if (!normalizedSource) {
       return;
     }
 
-    void import("mermaid")
-      .then(async (module) => {
-        const mermaid = module.default;
+    const renderDiagram = async () => {
+      if (!cancelled) {
+        setIsRendering(true);
+      }
+
+      if (sourceType === "MERMAID") {
+        const mermaidModule = await import("mermaid");
+        const mermaid = mermaidModule.default;
         mermaid.initialize(mermaidConfig);
         const { svg } = await mermaid.render(`mindmap-${renderId}`, normalizedSource);
+        return svg;
+      }
+
+      return renderPlantumlSource(normalizedSource);
+    };
+
+    void renderDiagram()
+      .then((svg) => {
         if (cancelled) {
           return;
         }
+
         setError(null);
         setSvgMarkup(svg);
       })
@@ -164,15 +150,45 @@ export function SpeakingIdeaMindMapRenderer({
         if (cancelled) {
           return;
         }
+
         setSvgMarkup("");
-        setError(nextError instanceof Error ? nextError.message : "Invalid Mermaid source.");
+        setError(
+          nextError instanceof Error
+            ? nextError.message
+            : sourceType === "PLANTUML"
+              ? "Invalid PlantUML source."
+              : "Invalid Mermaid source.",
+        );
       })
-      .finally(() => undefined);
+      .finally(() => {
+        if (!cancelled) {
+          setIsRendering(false);
+        }
+      });
 
     return () => {
       cancelled = true;
     };
   }, [normalizedSource, renderId, sourceType]);
+
+  const getPreparedExport = () => {
+    if (!effectiveSvgMarkup) {
+      return null;
+    }
+
+    try {
+      const svgElement = containerRef.current?.querySelector("svg");
+      return svgElement
+        ? prepareSvgElementForExport(svgElement, title ?? exportBaseName)
+        : normalizeSvgMarkupForExport(effectiveSvgMarkup, title ?? exportBaseName);
+    } catch (nextError) {
+      throw new Error(
+        nextError instanceof Error
+          ? nextError.message
+          : "Could not prepare the diagram for export.",
+      );
+    }
+  };
 
   const handleCopySource = async () => {
     try {
@@ -184,27 +200,44 @@ export function SpeakingIdeaMindMapRenderer({
   };
 
   const handleDownloadSvg = async () => {
-    if (!effectiveSvgMarkup) {
+    let preparedExport: ReturnType<typeof getPreparedExport>;
+
+    try {
+      preparedExport = getPreparedExport();
+    } catch (nextError) {
+      message.error(nextError instanceof Error ? nextError.message : "Could not prepare SVG export.");
+      return;
+    }
+
+    if (!preparedExport) {
       message.info("Render the mind map first before exporting.");
       return;
     }
 
-    await downloadSvg(
-      `${exportBaseName}.svg`,
-      getSvgMarkup(containerRef.current, effectiveSvgMarkup),
-    );
+    downloadSvgMarkup(`${exportBaseName}.svg`, preparedExport.svgMarkup);
   };
 
   const handleDownloadPng = async () => {
-    if (!effectiveSvgMarkup) {
+    let preparedExport: ReturnType<typeof getPreparedExport>;
+
+    try {
+      preparedExport = getPreparedExport();
+    } catch (nextError) {
+      message.error(nextError instanceof Error ? nextError.message : "Could not prepare PNG export.");
+      return;
+    }
+
+    if (!preparedExport) {
       message.info("Render the mind map first before exporting.");
       return;
     }
 
     try {
-      await downloadPng(
+      await downloadSvgElementAsPng(
         `${exportBaseName}.png`,
-        getSvgMarkup(containerRef.current, effectiveSvgMarkup),
+        preparedExport.svgMarkup,
+        preparedExport.width,
+        preparedExport.height,
       );
     } catch (nextError) {
       message.error(nextError instanceof Error ? nextError.message : "Could not export PNG.");
@@ -212,16 +245,48 @@ export function SpeakingIdeaMindMapRenderer({
   };
 
   const handlePrint = () => {
-    if (!effectiveSvgMarkup) {
+    let preparedExport: ReturnType<typeof getPreparedExport>;
+
+    try {
+      preparedExport = getPreparedExport();
+    } catch (nextError) {
+      message.error(nextError instanceof Error ? nextError.message : "Could not prepare the diagram for printing.");
+      return;
+    }
+
+    if (!preparedExport) {
       message.info("Render the mind map first before printing.");
       return;
     }
 
     try {
-      printSvg(getSvgMarkup(containerRef.current, effectiveSvgMarkup), title ?? exportBaseName);
+      printSvg(preparedExport.svgMarkup, title ?? exportBaseName);
     } catch (nextError) {
       message.error(nextError instanceof Error ? nextError.message : "Could not print the mind map.");
     }
+  };
+
+  const handleDownloadSource = () => {
+    const extension = sourceType === "PLANTUML" ? "puml" : "mmd";
+    downloadTextContent(`${exportBaseName}.${extension}`, normalizedSource);
+  };
+
+  const handleOpenSvg = () => {
+    let preparedExport: ReturnType<typeof getPreparedExport>;
+
+    try {
+      preparedExport = getPreparedExport();
+    } catch (nextError) {
+      message.error(nextError instanceof Error ? nextError.message : "Could not prepare the SVG preview.");
+      return;
+    }
+
+    if (!preparedExport) {
+      message.info("Render the mind map first before opening SVG.");
+      return;
+    }
+
+    openSvgMarkupInNewTab(preparedExport.svgMarkup);
   };
 
   return (
@@ -235,11 +300,17 @@ export function SpeakingIdeaMindMapRenderer({
               Copy source
             </Button>
           ) : null}
+          <Button icon={<NodeIndexOutlined />} onClick={handleDownloadSource}>
+            {sourceType === "PLANTUML" ? "Download .puml" : "Download .mmd"}
+          </Button>
           <Button icon={<DownloadOutlined />} onClick={() => void handleDownloadSvg()}>
             Download SVG
           </Button>
           <Button icon={<DownloadOutlined />} onClick={() => void handleDownloadPng()}>
             Download PNG
+          </Button>
+          <Button icon={<LinkOutlined />} onClick={handleOpenSvg}>
+            Open SVG in new tab
           </Button>
           {printEnabled ? (
             <Button icon={<PrinterOutlined />} onClick={handlePrint}>
@@ -259,13 +330,23 @@ export function SpeakingIdeaMindMapRenderer({
         <Typography.Text type="secondary">{emptyDescription}</Typography.Text>
       ) : (
         <div className="stacked-view">
-          {effectiveError ? (
+          {error ? (
             <Alert
               type="error"
               showIcon
               message="Mind map source could not be rendered."
-              description={effectiveError}
+              description={error}
             />
+          ) : null}
+          {sourceType === "PLANTUML" && !effectiveSvgMarkup && !error ? (
+            <Alert
+              type="info"
+              showIcon
+              message="PlantUML preview needs PLANTUML_SERVER_URL. You can still save, copy, and download the .puml source."
+            />
+          ) : null}
+          {isRendering ? (
+            <Typography.Text type="secondary">Rendering diagram preview…</Typography.Text>
           ) : null}
 
           <div className="speaking-idea-study-map">

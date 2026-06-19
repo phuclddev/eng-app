@@ -1,4 +1,8 @@
-import type { SpeakingIdeaMindMapRecord, SpeakingIdeaRecord } from "@/lib/types";
+import type {
+  SpeakingIdeaMindMapRecord,
+  SpeakingIdeaMindMapSourceType,
+  SpeakingIdeaRecord,
+} from "@/lib/types";
 import { normalizeText } from "@/lib/utils";
 
 const MAX_BRANCH_ITEMS = 6;
@@ -63,8 +67,24 @@ function addBranch(lines: string[], label: string, items: string[]) {
   });
 }
 
-function extractRootTitle(sourceText: string) {
+function addPlantumlBranch(lines: string[], label: string, items: string[]) {
+  if (items.length === 0) {
+    return;
+  }
+
+  lines.push(`** ${label}`);
+  items.slice(0, MAX_BRANCH_ITEMS).forEach((item) => {
+    lines.push(`*** ${truncate(item, 110)}`);
+  });
+}
+
+function extractMermaidRootTitle(sourceText: string) {
   const match = sourceText.match(/root\(\((.+?)\)\)/);
+  return match?.[1]?.trim() || null;
+}
+
+function extractPlantumlRootTitle(sourceText: string) {
+  const match = sourceText.match(/^\*\s+(.+)$/m);
   return match?.[1]?.trim() || null;
 }
 
@@ -89,7 +109,7 @@ export function buildSpeakingIdeaMindMapExportBaseName(idea: {
   return `speaking-idea-map-${slug || "idea"}`;
 }
 
-export function generateSpeakingIdeaMindMapSource(idea: SpeakingIdeaRecord) {
+function buildIdeaBranchData(idea: SpeakingIdeaRecord) {
   const simpleVersions = uniqueLines(
     [...idea.variants]
       .sort((left, right) => left.bandLevel - right.bandLevel)
@@ -130,6 +150,21 @@ export function generateSpeakingIdeaMindMapSource(idea: SpeakingIdeaRecord) {
     idea.patterns.map((pattern) => truncate(pattern.exampleAnswer, 118)),
   ).slice(0, MAX_SAMPLE_ANSWERS);
 
+  return {
+    simpleVersions,
+    bandUpgrades,
+    supports,
+    patterns,
+    chunks,
+    questions,
+    samples,
+  };
+}
+
+export function generateMermaidSpeakingIdeaMindMapSource(idea: SpeakingIdeaRecord) {
+  const { simpleVersions, bandUpgrades, supports, patterns, chunks, questions, samples } =
+    buildIdeaBranchData(idea);
+
   const lines = [
     "mindmap",
     indent(1, `root((${cleanLine(idea.title)}))`),
@@ -150,10 +185,44 @@ export function generateSpeakingIdeaMindMapSource(idea: SpeakingIdeaRecord) {
   return formatSpeakingIdeaMindMapSource(lines.join("\n"));
 }
 
+export function generatePlantumlSpeakingIdeaMindMapSource(idea: SpeakingIdeaRecord) {
+  const { simpleVersions, bandUpgrades, supports, patterns, chunks, questions, samples } =
+    buildIdeaBranchData(idea);
+
+  const lines = ["@startmindmap", `* ${cleanLine(idea.title)}`];
+
+  if (idea.descriptionVi) {
+    lines.push(`** ${truncate(idea.descriptionVi, 100)}`);
+  }
+
+  addPlantumlBranch(lines, "Simple version", simpleVersions);
+  addPlantumlBranch(lines, "Band upgrade", bandUpgrades);
+  addPlantumlBranch(lines, "Supporting logic", supports);
+  addPlantumlBranch(lines, "Reusable answer pattern", patterns);
+  addPlantumlBranch(lines, "Useful chunks", chunks);
+  addPlantumlBranch(lines, "Applicable questions", questions);
+  addPlantumlBranch(lines, "Sample answers", samples);
+  lines.push("@endmindmap");
+
+  return formatSpeakingIdeaMindMapSource(lines.join("\n"));
+}
+
+export function generateSpeakingIdeaMindMapSource(
+  idea: SpeakingIdeaRecord,
+  sourceType: SpeakingIdeaMindMapSourceType = "MERMAID",
+) {
+  return sourceType === "PLANTUML"
+    ? generatePlantumlSpeakingIdeaMindMapSource(idea)
+    : generateMermaidSpeakingIdeaMindMapSource(idea);
+}
+
 export function getSpeakingIdeaMindMapRecord(
   idea: SpeakingIdeaRecord,
 ): SpeakingIdeaMindMapRecord {
-  const generatedSource = generateSpeakingIdeaMindMapSource(idea);
+  const generatedSource = generateSpeakingIdeaMindMapSource(
+    idea,
+    idea.mindMapSourceType,
+  );
   const sourceText = idea.mindMapSourceText
     ? formatSpeakingIdeaMindMapSource(idea.mindMapSourceText)
     : generatedSource;
@@ -164,7 +233,9 @@ export function getSpeakingIdeaMindMapRecord(
     sourceText,
     renderedTitle:
       idea.mindMapRenderedTitle ??
-      extractRootTitle(sourceText) ??
+      (idea.mindMapSourceType === "PLANTUML"
+        ? extractPlantumlRootTitle(sourceText)
+        : extractMermaidRootTitle(sourceText)) ??
       idea.shortLabel ??
       idea.title,
     updatedAt: idea.updatedAt ?? null,

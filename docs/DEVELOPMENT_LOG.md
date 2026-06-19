@@ -315,6 +315,21 @@
 - Added a clean study route at `/admin/ideas/[id]/study-map` for memorization and printing.
 - Updated `/admin/ideas/map` so focus mode now defaults to the source-based study preview, while the older `Canvas view` remains optional.
 - Added helper/service/middleware coverage for Mermaid source generation, source validation, source saving, and admin-only study-map access.
+- Upgraded the study-map layer so it now supports both `MERMAID` and `PLANTUML` source types.
+- Added a private PlantUML preview route at `/api/admin/ideas/plantuml/render` that only works when `PLANTUML_SERVER_URL` is configured.
+- Fixed the PNG export path by introducing a dedicated SVG export utility that:
+  - clones the rendered SVG
+  - inlines live computed styles
+  - normalizes width / height / viewBox
+  - paints onto a white canvas before exporting PNG
+- Added fallback actions when PNG export cannot be rasterized cleanly:
+  - `Download SVG`
+  - `Open SVG in new tab`
+  - raw source download as `.mmd` or `.puml`
+- Added test coverage for:
+  - PlantUML source generation and validation
+  - PlantUML render route auth + success flow
+  - export normalization when SVG width/height are missing
   - `# Reusable Pattern`
 - Added fallback normalization so if the AI returns plain text instead of the expected sectioned Markdown, the server wraps it into the required headings instead of breaking the admin flow.
 - Phase 5 is intentionally generate-only for now: answers are returned to the UI for copy/review/regeneration, but are not yet persisted in a new DB table.

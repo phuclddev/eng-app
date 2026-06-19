@@ -11,6 +11,7 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().default(""),
   AI_CHATFLOW_URL: z.union([z.string().url(), z.literal("")]).default(""),
   AI_CHATFLOW_TOKEN: z.string().default(""),
+  PLANTUML_SERVER_URL: z.union([z.string().url(), z.literal("")]).default(""),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),
@@ -28,4 +29,9 @@ export function isGoogleAuthConfigured() {
 export function isAiTutorConfigured() {
   const env = getEnv();
   return Boolean(env.AI_CHATFLOW_URL && env.AI_CHATFLOW_TOKEN);
+}
+
+export function isPlantumlConfigured() {
+  const env = getEnv();
+  return Boolean(env.PLANTUML_SERVER_URL);
 }

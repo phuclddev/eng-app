@@ -693,7 +693,30 @@ export const speakingIdeaMindMapSchema = z
         message: "Mermaid mind map source must start with 'mindmap'.",
       });
     }
+
+    if (
+      input.sourceType === "PLANTUML" &&
+      !input.sourceText.trim().toLowerCase().startsWith("@startmindmap")
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["sourceText"],
+        message: "PlantUML mind map source must start with '@startmindmap'.",
+      });
+    }
   });
+
+export const plantumlRenderSchema = z.object({
+  sourceText: z
+    .string()
+    .trim()
+    .min(12, "PlantUML source is required.")
+    .max(30000, "PlantUML source is too long.")
+    .refine(
+      (value) => value.toLowerCase().startsWith("@startmindmap"),
+      "PlantUML source must start with '@startmindmap'.",
+    ),
+});
 
 export const practiceSubmissionSchema = z.object({
   mode: z.enum(PRACTICE_MODES),
@@ -914,6 +937,7 @@ export type IdeaQuestionMappingSuggestPayload = z.infer<typeof ideaQuestionMappi
 export type SpeakingIdeaGenerateAnswerPayload = z.infer<typeof speakingIdeaGenerateAnswerSchema>;
 export type SpeakingIdeaMindMapInput = z.input<typeof speakingIdeaMindMapSchema>;
 export type SpeakingIdeaMindMapValues = z.infer<typeof speakingIdeaMindMapSchema>;
+export type PlantumlRenderPayload = z.infer<typeof plantumlRenderSchema>;
 export type QuestionChunkMappingsFormInput = z.input<
   typeof questionChunkMappingsFormSchema
 >;

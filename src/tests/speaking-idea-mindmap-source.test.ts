@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildSpeakingIdeaMindMapExportBaseName,
   formatSpeakingIdeaMindMapSource,
+  generatePlantumlSpeakingIdeaMindMapSource,
   generateSpeakingIdeaMindMapSource,
   getSpeakingIdeaMindMapRecord,
 } from "@/lib/speaking-idea-mindmap-source";
@@ -99,6 +100,17 @@ describe("speaking idea Mermaid source helpers", () => {
     expect(source).toContain("Applicable questions");
   });
 
+  it("generates a PlantUML mind map source with reusable branches", () => {
+    const source = generatePlantumlSpeakingIdeaMindMapSource(createIdea());
+
+    expect(source).toContain("@startmindmap");
+    expect(source).toContain("* Access to information");
+    expect(source).toContain("** Simple version");
+    expect(source).toContain("** Band upgrade");
+    expect(source).toContain("** Supporting logic");
+    expect(source).toContain("@endmindmap");
+  });
+
   it("prefers saved custom source while keeping idea data unchanged", () => {
     const idea = createIdea();
     const frozenBefore = JSON.stringify(idea);
@@ -130,5 +142,15 @@ describe("speaking idea Mermaid source helpers", () => {
         sourceText: "graph TD\nA-->B",
       }),
     ).toThrow("mindmap");
+  });
+
+  it("rejects invalid PlantUML source input on save", () => {
+    expect(() =>
+      speakingIdeaMindMapSchema.parse({
+        ideaId: "idea-1",
+        sourceType: "PLANTUML",
+        sourceText: "mindmap\n  root((Idea))",
+      }),
+    ).toThrow("@startmindmap");
   });
 });

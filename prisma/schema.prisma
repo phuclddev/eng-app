@@ -96,7 +96,7 @@ enum SpeakingIdeaSupportType {
 
 enum SpeakingIdeaMindMapSourceType {
   MERMAID
-  PLANTUML_TEXT
+  PLANTUML
 }
 
 enum AiConversationPurpose {
